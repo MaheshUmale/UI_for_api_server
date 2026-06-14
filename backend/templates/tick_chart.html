@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tick Chart | PRODESK</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,800&display=swap');
+
+        :root {
+            --bg-main: #0f172a;
+            --bg-panel: rgba(30, 41, 59, 0.7);
+            --text-primary: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-subtle: rgba(255, 255, 255, 0.05);
+            --color-primary: #3b82f6;
+        }
+
+        body.light-theme {
+            --bg-main: #f1f5f9;
+            --bg-panel: rgba(255, 255, 255, 0.8);
+            --text-primary: #0f172a;
+            --text-muted: #475569;
+            --border-subtle: rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            overflow: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .glass-panel {
+            background: var(--bg-panel);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .chart-container {
+            width: 100%;
+            height: calc(100vh - 60px);
+        }
+
+        #symbol-info {
+            position: absolute;
+            top: 70px;
+            left: 20px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .replay-control {
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 9999px;
+            padding: 4px 12px;
+            display: flex;
+            items-center: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col light-theme">
+    <header class="h-14 py-2 glass-panel border-b border-white/5 sticky top-0 z-50 px-4 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <span class="text-sm font-black text-blue-500 italic tracking-tighter uppercase">PRO<span class="text-gray-500">DESK</span> TICK</span>
+            <div class="h-6 w-px bg-white/10 mx-2"></div>
+            <div id="display-symbol" class="text-xs font-black uppercase tracking-widest text-blue-500">-</div>
+            <div id="status-indicator" class="flex items-center gap-1.5 ml-4">
+                <div id="status-dot" class="w-2 h-2 rounded-full bg-gray-400"></div>
+                <span id="status-text" class="text-[10px] font-bold text-gray-400 uppercase">Connecting...</span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <!-- Normal Controls -->
+            <div id="normal-controls" class="flex items-center gap-3">
+                <div class="flex items-center gap-2 bg-black/10 rounded-full px-3 py-1">
+                    <span class="text-[10px] font-bold text-gray-400 uppercase">Ticks:</span>
+                    <input type="number" id="ticks-input" value="100" class="bg-transparent text-[10px] font-black w-12 outline-none text-blue-500" min="1">
+                </div>
+                <button id="replay-mode-btn" class="text-[10px] font-black px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-full text-white transition-all uppercase tracking-tight shadow-md shadow-blue-500/20 active:scale-95">Replay</button>
+            </div>
+
+            <!-- Replay Controls -->
+            <div id="replay-controls" class="hidden flex items-center gap-2 bg-blue-900/20 p-1 rounded-full border border-blue-500/30">
+                <span id="replay-status" class="text-[9px] font-black text-blue-400 px-2 uppercase tracking-tighter">SELECT START POINT</span>
+                <button id="replay-prev-btn" class="hover:bg-blue-500/20 p-1 rounded-full text-blue-400 disabled:opacity-30" disabled>
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M8.445 14.832A1 1 0 0010 14v-2.798l5.445 3.63A1 1 0 0017 14V6a1 1 0 00-1.555-.832L10 8.798V6a1 1 0 00-1.555-.832l-6 4a1 1 0 000 1.664l6 4z"/></svg>
+                </button>
+                <button id="replay-play-btn" class="hover:bg-blue-500/20 p-1 rounded-full text-blue-400 disabled:opacity-30" disabled>
+                    <svg id="play-icon" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M4.5 3.5v13L16.5 10l-12-6.5z"/></svg>
+                    <svg id="pause-icon" class="hidden w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                </button>
+                <button id="replay-next-btn" class="hover:bg-blue-500/20 p-1 rounded-full text-blue-400 disabled:opacity-30" disabled>
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M11.555 14.832l6-4a1 1 0 000-1.664l-6-4A1 1 0 0010 6v2.798L4.555 5.168A1 1 0 003 6v8a1 1 0 001.555.832L10 11.202V14a1 1 0 001.555.832z"/></svg>
+                </button>
+                <button id="exit-replay-btn" class="text-[9px] font-bold px-3 py-1 hover:bg-red-900/40 rounded-full text-red-400 transition-colors">EXIT</button>
+            </div>
+            <button id="theme-toggle" class="p-2 hover:bg-black/5 rounded-full transition-colors">
+                <svg id="sun-icon" class="hidden w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
+                <svg id="moon-icon" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 relative bg-[var(--bg-main)]">
+        <div id="symbol-info">
+            <div id="last-price" class="text-3xl font-black tracking-tighter">-</div>
+            <div id="change-info" class="text-xs font-bold mt-1">-</div>
+        </div>
+        <div id="chart" class="chart-container"></div>
+    </main>
+
+    <script>
+        const socket = io();
+        let chart, candleSeries, volumeSeries;
+        let historicalTicks = [];
+        let isReplayMode = false;
+        let replayIndex = -1;
+        let isPlaying = false;
+        let replayInterval = null;
+
+        // Parse symbol from URL (support both ?symbol= and /symbol= format)
+        let symbol = 'NSE:NIFTY';
+        const urlParams = new URLSearchParams(window.location.search);
+        const pathParts = window.location.pathname.split('/');
+
+        if (urlParams.get('symbol')) {
+            symbol = urlParams.get('symbol');
+        } else {
+            // Check for /tick/symbol=...
+            const symbolPart = pathParts.find(p => p.startsWith('symbol='));
+            if (symbolPart) {
+                symbol = symbolPart.split('=')[1];
+            }
+        }
+        symbol = symbol.toUpperCase();
+
+        let ticksPerCandle = parseInt(urlParams.get('ticks')) || 100;
+
+        document.getElementById('ticks-input').value = ticksPerCandle;
+        document.getElementById('display-symbol').textContent = symbol;
+
+        function setStatus(text, color) {
+            const dot = document.getElementById('status-dot');
+            const el = document.getElementById('status-text');
+            el.textContent = text;
+            dot.className = `w-2 h-2 rounded-full ${color}`;
+        }
+
+        class TickAggregator {
+            constructor(tpc) {
+                this.tpc = tpc;
+                this.currentTickCount = 0;
+                this.currentCandle = null;
+                this.lastTime = 0;
+            }
+
+            setTicksPerCandle(tpc) {
+                this.tpc = tpc;
+                this.currentTickCount = 0;
+                this.currentCandle = null;
+            }
+
+            processTick(tick) {
+                const price = Number(tick.price);
+                const qty = Number(tick.qty || 0);
+                let ts = Math.floor(tick.ts_ms / 1000);
+
+                if (!this.currentCandle || this.currentTickCount >= this.tpc) {
+                    if (ts <= this.lastTime) {
+                        ts = this.lastTime + 1;
+                    }
+                    this.lastTime = ts;
+
+                    this.currentCandle = {
+                        time: ts,
+                        open: price,
+                        high: price,
+                        low: price,
+                        close: price,
+                        volume: qty
+                    };
+                    this.currentTickCount = 1;
+                    return { type: 'new', candle: this.currentCandle };
+                } else {
+                    this.currentCandle.high = Math.max(this.currentCandle.high, price);
+                    this.currentCandle.low = Math.min(this.currentCandle.low, price);
+                    this.currentCandle.close = price;
+                    this.currentCandle.volume += qty;
+                    this.currentTickCount++;
+                    return { type: 'update', candle: this.currentCandle };
+                }
+            }
+        }
+
+        const aggregator = new TickAggregator(ticksPerCandle);
+
+        function initChart() {
+            const container = document.getElementById('chart');
+            chart = LightweightCharts.createChart(container, {
+                layout: { background: { type: 'solid', color: 'transparent' }, textColor: '#191919' },
+                grid: { vertLines: { color: 'rgba(0,0,0,0.05)' }, horzLines: { color: 'rgba(0,0,0,0.05)' } },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                localization: {
+                    locale: 'en-IN',
+                    timeFormatter: (ts) => {
+                        return new Intl.DateTimeFormat('en-IN', {
+                            timeZone: 'Asia/Kolkata',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                        }).format(new Date(ts * 1000));
+                    }
+                },
+                timeScale: {
+                    borderColor: 'rgba(0,0,0,0.1)',
+                    timeVisible: true,
+                    secondsVisible: true,
+                    rightOffset: 12,
+                    tickMarkFormatter: (time, tickMarkType, locale) => {
+                        const date = new Date(time * 1000);
+                        const options = { timeZone: 'Asia/Kolkata', hour12: false };
+                        if (tickMarkType >= 3) {
+                            options.hour = '2-digit';
+                            options.minute = '2-digit';
+                        } else {
+                            options.day = '2-digit';
+                            options.month = 'short';
+                        }
+                        return new Intl.DateTimeFormat('en-IN', options).format(date);
+                    }
+                },
+                rightPriceScale: { borderColor: 'rgba(0,0,0,0.1)' }
+            });
+
+            candleSeries = chart.addCandlestickSeries({
+                upColor: '#22c55e', downColor: '#ef4444', borderVisible: true, wickUpColor: '#22c55e', wickDownColor: '#ef4444'
+            });
+
+            volumeSeries = chart.addHistogramSeries({
+                color: '#3b82f6', priceFormat: { type: 'volume' }, priceScaleId: 'volume'
+            });
+
+            chart.priceScale('volume').applyOptions({
+                scaleMargins: { top: 0.8, bottom: 0 }, visible: false
+            });
+
+            window.addEventListener('resize', () => {
+                chart.resize(container.clientWidth, container.clientHeight);
+            });
+        }
+
+        async function loadHistory() {
+            setStatus('Loading History...', 'bg-yellow-500');
+            try {
+                console.log(`Fetching history for ${symbol}...`);
+                const res = await fetch(`/api/ticks/history/${encodeURIComponent(symbol)}?limit=10000`);
+                if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+                const data = await res.json();
+                historicalTicks = data.history || [];
+                console.log(`Received ${historicalTicks.length} ticks from server.`);
+
+                if (!isReplayMode) {
+                    renderTicks(historicalTicks);
+                }
+
+                if (historicalTicks.length > 0) {
+                    setStatus(isReplayMode ? 'Replay Mode' : 'Live Feed Active', isReplayMode ? 'bg-blue-500' : 'bg-green-500');
+                } else {
+                    setStatus('No History Found', 'bg-red-500');
+                }
+            } catch (e) {
+                console.error("Load history failed", e);
+                setStatus('History Load Failed', 'bg-red-500');
+            }
+        }
+
+        function renderTicks(ticks) {
+            const candles = [];
+            const volumes = [];
+
+            aggregator.lastTime = 0;
+            aggregator.currentCandle = null;
+            aggregator.currentTickCount = 0;
+
+            ticks.forEach(t => {
+                const result = aggregator.processTick(t);
+                if (result.type === 'new') {
+                    candles.push({...result.candle});
+                } else if (candles.length > 0) {
+                    candles[candles.length - 1] = {...result.candle};
+                }
+            });
+
+            candles.forEach(c => {
+                volumes.push({
+                    time: c.time,
+                    value: c.volume,
+                    color: c.close >= c.open ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'
+                });
+            });
+
+            candleSeries.setData(candles);
+            volumeSeries.setData(volumes);
+
+            if (candles.length > 0) {
+                updatePriceUI(candles[candles.length - 1].close);
+            }
+        }
+
+        function updatePriceUI(price) {
+            document.getElementById('last-price').textContent = price.toLocaleString(undefined, { minimumFractionDigits: 2 });
+        }
+
+        function initSocket() {
+            socket.on('connect', () => {
+                socket.emit('subscribe', { instrumentKeys: [symbol] });
+            });
+
+            socket.on('raw_tick', (data) => {
+                if (isReplayMode) return;
+                if (data[symbol]) {
+                    const tick = data[symbol];
+                    const result = aggregator.processTick({
+                        price: tick.last_price,
+                        qty: tick.ltq,
+                        ts_ms: tick.ts_ms
+                    });
+
+                    candleSeries.update(result.candle);
+                    volumeSeries.update({
+                        time: result.candle.time,
+                        value: result.candle.volume,
+                        color: result.candle.close >= result.candle.open ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'
+                    });
+                    updatePriceUI(result.candle.close);
+                }
+            });
+        }
+
+        // --- Replay Logic ---
+        function initReplay() {
+            document.getElementById('replay-mode-btn').addEventListener('click', () => {
+                isReplayMode = true;
+                replayIndex = -1;
+                document.getElementById('normal-controls').classList.add('hidden');
+                document.getElementById('replay-controls').classList.remove('hidden');
+                document.getElementById('replay-status').innerText = 'SELECT START POINT';
+                ['replay-play-btn', 'replay-next-btn', 'replay-prev-btn'].forEach(id => document.getElementById(id).disabled = true);
+                setStatus('Replay Mode', 'bg-blue-500');
+            });
+
+            document.getElementById('exit-replay-btn').addEventListener('click', () => {
+                isReplayMode = false;
+                isPlaying = false;
+                if (replayInterval) clearInterval(replayInterval);
+                document.getElementById('replay-controls').classList.add('hidden');
+                document.getElementById('normal-controls').classList.remove('hidden');
+                renderTicks(historicalTicks);
+                setStatus('Live Feed Active', 'bg-green-500');
+            });
+
+            chart.subscribeClick((param) => {
+                if (isReplayMode && param.time && replayIndex === -1) {
+                    const idx = historicalTicks.findIndex(t => Math.floor(t.ts_ms / 1000) >= param.time);
+                    if (idx !== -1) {
+                        replayIndex = idx;
+                        stepReplay(0);
+                    }
+                }
+            });
+
+            document.getElementById('replay-next-btn').addEventListener('click', () => stepReplay(1));
+            document.getElementById('replay-prev-btn').addEventListener('click', () => stepReplay(-1));
+            document.getElementById('replay-play-btn').addEventListener('click', () => {
+                if (isPlaying) {
+                    isPlaying = false;
+                    if (replayInterval) clearInterval(replayInterval);
+                } else {
+                    isPlaying = true;
+                    replayInterval = setInterval(() => {
+                        if (replayIndex < historicalTicks.length - 1) {
+                            stepReplay(1);
+                        } else {
+                            isPlaying = false;
+                            clearInterval(replayInterval);
+                            updateReplayUI();
+                        }
+                    }, 100);
+                }
+                updateReplayUI();
+            });
+        }
+
+        function stepReplay(delta) {
+            const newIdx = replayIndex + delta;
+            if (newIdx >= 0 && newIdx < historicalTicks.length) {
+                replayIndex = newIdx;
+                const subset = historicalTicks.slice(0, replayIndex + 1);
+                renderTicks(subset);
+                updateReplayUI();
+            }
+        }
+
+        function updateReplayUI() {
+            document.getElementById('replay-play-btn').disabled = replayIndex === -1;
+            document.getElementById('replay-next-btn').disabled = replayIndex === -1;
+            document.getElementById('replay-prev-btn').disabled = replayIndex === -1;
+            document.getElementById('play-icon').classList.toggle('hidden', isPlaying);
+            document.getElementById('pause-icon').classList.toggle('hidden', !isPlaying);
+            if (replayIndex !== -1) {
+                document.getElementById('replay-status').innerText = `TICK ${replayIndex + 1} / ${historicalTicks.length}`;
+            }
+        }
+
+        function initTheme() {
+            const btn = document.getElementById('theme-toggle');
+            btn.addEventListener('click', () => {
+                const isLight = document.body.classList.contains('light-theme');
+                applyTheme(isLight ? 'dark' : 'light');
+            });
+            applyTheme(localStorage.getItem('theme') || 'light');
+        }
+
+        function applyTheme(theme) {
+            localStorage.setItem('theme', theme);
+            const isLight = theme === 'light';
+            if (isLight) {
+                document.body.classList.add('light-theme');
+                document.getElementById('sun-icon').classList.add('hidden');
+                document.getElementById('moon-icon').classList.remove('hidden');
+            } else {
+                document.body.classList.remove('light-theme');
+                document.getElementById('sun-icon').classList.remove('hidden');
+                document.getElementById('moon-icon').classList.add('hidden');
+            }
+
+            const chartBg = isLight ? '#f1f5f9' : '#0f172a';
+            const chartText = isLight ? '#1e293b' : '#f8fafc';
+            const gridColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+
+            if (chart) {
+                chart.applyOptions({
+                    layout: { textColor: chartText },
+                    grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
+                    timeScale: { borderColor: gridColor },
+                    rightPriceScale: { borderColor: gridColor }
+                });
+            }
+        }
+
+        document.getElementById('ticks-input').addEventListener('change', (e) => {
+            ticksPerCandle = parseInt(e.target.value) || 100;
+            aggregator.setTicksPerCandle(ticksPerCandle);
+            loadHistory();
+        });
+
+        initChart();
+        initTheme();
+        loadHistory();
+        initSocket();
+        initReplay();
+    </script>
+</body>
+</html>
