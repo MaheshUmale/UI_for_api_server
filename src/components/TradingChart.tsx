@@ -41,6 +41,7 @@ export default function TradingChart({
   const [viewVolatility, setViewVolatility] = useState<boolean>(true);
   const [hoverData, setHoverData] = useState<{ price: number; time: string; index: number } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light'); // Default to beautiful light-mode shown in screen
 
   // Dragging and Panning States
   const isDragging = useRef<boolean>(false);
@@ -72,9 +73,9 @@ export default function TradingChart({
   }, [isFullscreen]);
 
   const paddingLeft = 8;
-  const paddingRight = 52; // Extra compact right Y-axis for price scaling
+  const paddingRight = 55; // Sized for pristine, compact high-visibility price tags on scale
   const paddingTop = 12;
-  const paddingBottom = 20; // Room for tight hour:minute tags below
+  const paddingBottom = 20; // Optimized spacing for clean hour:minute timeline tag
 
   // Track size of container
   useEffect(() => {
@@ -131,6 +132,24 @@ export default function TradingChart({
     return { price, index: candleIndex, x, y };
   };
 
+  // Helper to resolve stable colored metadata and initials for headers
+  const getSymbolMeta = (sym: string) => {
+    const cleanSym = sym.replace('NSE:', '').replace('NIFTY24JUN', '').replace('NIFTY_', '');
+    const initial = cleanSym.substring(0, 2).toUpperCase();
+    
+    let bg = 'bg-blue-500/10 text-blue-600 border border-blue-500/20';
+    if (sym.includes('CE') || sym.includes('CALL')) {
+      bg = 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20';
+    } else if (sym.includes('PE') || sym.includes('PUT')) {
+      bg = 'bg-rose-500/10 text-rose-600 border border-rose-500/20';
+    } else if (sym.includes('NIFTY')) {
+      bg = 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20';
+    }
+    return { initial, cleanSym, bg };
+  };
+
+  const symbolMeta = getSymbolMeta(symbol);
+
   // Render Loop
   useEffect(() => {
     if (!canvasRef.current || candles.length === 0) return;
@@ -138,8 +157,16 @@ export default function TradingChart({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // Theme values configuration
+    const isLight = theme === 'light';
+    const canvasBg = isLight ? '#ffffff' : '#0c101e';
+    const gridColor = isLight ? '#f2f3f5' : '#141d2f';
+    const textMainColor = isLight ? '#5d606a' : '#94a3b8';
+    const crosshairColor = isLight ? 'rgba(93, 96, 106, 0.22)' : 'rgba(148, 163, 184, 0.18)';
+    const frameBorderColor = isLight ? '#e0e3eb' : '#1e293b';
+
     // Clear background
-    ctx.fillStyle = '#0b0f19'; // Rich dark interface
+    ctx.fillStyle = canvasBg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const chartWidth = canvas.width - paddingLeft - paddingRight;
@@ -166,9 +193,9 @@ export default function TradingChart({
     };
 
     // 1. Draw grid lines (Horizontal price grid & Vertical time grid)
-    ctx.strokeStyle = '#141d2f';
+    ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
-    ctx.fillStyle = '#64748b';
+    ctx.fillStyle = textMainColor;
     ctx.font = '8.5px JetBrains Mono, monospace';
     ctx.textAlign = 'left';
 
@@ -195,7 +222,7 @@ export default function TradingChart({
           const x = scaleX(actualIdx);
           const candle = visibleCandles[i];
           if (candle && x >= paddingLeft && x <= canvas.width - paddingRight) {
-            ctx.strokeStyle = '#111827'; // Darker grid support for time columns
+            ctx.strokeStyle = isLight ? '#f8f9fa' : '#111827';
             ctx.beginPath();
             ctx.moveTo(x, paddingTop);
             ctx.lineTo(x, canvas.height - paddingBottom);
@@ -218,7 +245,7 @@ export default function TradingChart({
     if (oiData && oiData.length > 0) {
       const maxCallOi = Math.max(...oiData.map((d) => d.call_oi)) || 1;
       const maxPutOi = Math.max(...oiData.map((d) => d.put_oi)) || 1;
-      const oiScaleWidth = 60; // max length of OI bars
+      const oiScaleWidth = 55; // max length of OI bars
 
       oiData.forEach((oiItem) => {
         if (oiItem.strike >= minP && oiItem.strike <= maxP) {
@@ -226,23 +253,23 @@ export default function TradingChart({
 
           // Call OI (Resistance - Orange-Red bars extending right-of-chart)
           const callWidth = (oiItem.call_oi / maxCallOi) * oiScaleWidth;
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.15)'; // Red opacity
+          ctx.fillStyle = 'rgba(242, 54, 69, 0.12)'; // Red opacity
           ctx.fillRect(canvas.width - paddingRight - callWidth, y - 6, callWidth, 5);
-          ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+          ctx.strokeStyle = 'rgba(242, 54, 69, 0.35)';
           ctx.lineWidth = 0.5;
           ctx.strokeRect(canvas.width - paddingRight - callWidth, y - 6, callWidth, 5);
 
           // Put OI (Support - Emerald Green bars extending right-of-chart)
           const putWidth = (oiItem.put_oi / maxPutOi) * oiScaleWidth;
-          ctx.fillStyle = 'rgba(16, 185, 129, 0.15)'; // Green opacity
+          ctx.fillStyle = 'rgba(8, 153, 129, 0.12)'; // Green opacity
           ctx.fillRect(canvas.width - paddingRight - putWidth, y + 1, putWidth, 5);
-          ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+          ctx.strokeStyle = 'rgba(8, 153, 129, 0.35)';
           ctx.lineWidth = 0.5;
           ctx.strokeRect(canvas.width - paddingRight - putWidth, y + 1, putWidth, 5);
 
           // Label strikes with small gray values
-          ctx.fillStyle = '#475569';
-          ctx.font = '9px JetBrains Mono, monospace';
+          ctx.fillStyle = isLight ? '#7f8c8d' : '#475569';
+          ctx.font = '8px JetBrains Mono, monospace';
           ctx.fillText(`Strike ${oiItem.strike}`, canvas.width - paddingRight + 4, y - 4);
         }
       });
@@ -254,18 +281,18 @@ export default function TradingChart({
       supportResistance.resistance.forEach((res, index) => {
         if (res.strike >= minP && res.strike <= maxP) {
           const y = scaleY(res.strike);
-          ctx.strokeStyle = 'rgba(244, 63, 94, 0.65)';
+          ctx.strokeStyle = 'rgba(242, 54, 69, 0.55)';
           ctx.setLineDash([4, 4]);
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = 1.2;
           ctx.beginPath();
           ctx.moveTo(paddingLeft, y);
           ctx.lineTo(canvas.width - paddingRight, y);
           ctx.stroke();
           ctx.setLineDash([]);
 
-          ctx.fillStyle = '#f43f5e';
-          ctx.font = '9px JetBrains Mono, monospace';
-          ctx.fillText(`R${index + 1}: ${res.strike}`, paddingLeft + 10, y - 6);
+          ctx.fillStyle = '#f23645';
+          ctx.font = 'bold 8px JetBrains Mono, monospace';
+          ctx.fillText(`R${index + 1}: ${res.strike}`, paddingLeft + 10, y - 5);
         }
       });
 
@@ -273,18 +300,18 @@ export default function TradingChart({
       supportResistance.support.forEach((sup, index) => {
         if (sup.strike >= minP && sup.strike <= maxP) {
           const y = scaleY(sup.strike);
-          ctx.strokeStyle = 'rgba(16, 185, 129, 0.65)';
+          ctx.strokeStyle = 'rgba(8, 153, 129, 0.55)';
           ctx.setLineDash([4, 4]);
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = 1.2;
           ctx.beginPath();
           ctx.moveTo(paddingLeft, y);
           ctx.lineTo(canvas.width - paddingRight, y);
           ctx.stroke();
           ctx.setLineDash([]);
 
-          ctx.fillStyle = '#10b981';
-          ctx.font = '9px JetBrains Mono, monospace';
-          ctx.fillText(`S${index + 1}: ${sup.strike}`, paddingLeft + 10, y + 12);
+          ctx.fillStyle = '#089981';
+          ctx.font = 'bold 8px JetBrains Mono, monospace';
+          ctx.fillText(`S${index + 1}: ${sup.strike}`, paddingLeft + 10, y + 10);
         }
       });
     }
@@ -292,7 +319,7 @@ export default function TradingChart({
     // 4. Draw Volatility Overlay (Analytical Bollinger-like bands)
     if (viewVolatility && visibleCount > 0) {
       // Shaded standard deviation tunnel
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.04)'; // Light blue tint
+      ctx.fillStyle = isLight ? 'rgba(56, 189, 248, 0.03)' : 'rgba(56, 189, 248, 0.04)';
       ctx.beginPath();
 
       // Upper band line
@@ -320,7 +347,7 @@ export default function TradingChart({
 
       // Outer boundaries
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 0.8;
       ctx.beginPath();
       visibleCandles.forEach((c, idx) => {
         const x = scaleX(startIdx + idx);
@@ -344,13 +371,12 @@ export default function TradingChart({
 
     // 5. Draw EMA Indicators
     // EMA 9 (Blue)
-    ctx.strokeStyle = '#3b82f6';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#2962ff';
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
     let ema9Active = false;
     visibleCandles.forEach((c, idx) => {
       const actualIdx = startIdx + idx;
-      // We check if value is available or compute a simple EMA running values
       let emaValue = c.close;
       if (idx > 0) {
         const prevCandle = visibleCandles[idx - 1];
@@ -368,8 +394,8 @@ export default function TradingChart({
     ctx.stroke();
 
     // EMA 20 (Orange)
-    ctx.strokeStyle = '#f97316';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#ff9800';
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
     let ema20Active = false;
     visibleCandles.forEach((c, idx) => {
@@ -378,7 +404,7 @@ export default function TradingChart({
       if (idx > 4) {
         let sum = 0;
         for (let j = 0; j < 5; j++) sum += visibleCandles[idx - j].close;
-        emaValue = sum / 5; // Simple SMA as reliable overlay proxy
+        emaValue = sum / 5;
       }
       const x = scaleX(actualIdx);
       const y = scaleY(emaValue);
@@ -391,14 +417,28 @@ export default function TradingChart({
     });
     ctx.stroke();
 
-    // 6. Draw Candlesticks
-    const barWidth = Math.max(3, (chartWidth / visibleCount) * 0.7);
+    // 6. Draw Translucent volume columns at the bottom of the chart area (TradingView Style)
+    const barWidth = Math.max(3.2, (chartWidth / visibleCount) * 0.72);
+    const maxVolume = Math.max(...visibleCandles.map((c) => c.volume || 1)) || 1;
+    const volumeHeightLimit = chartHeight * 0.15; // Clean 15% height overlay
+    const yVolBaseline = canvas.height - paddingBottom;
 
-    // Calculate 200-period simple moving average of volume
+    visibleCandles.forEach((candle, idx) => {
+      const actualIdx = startIdx + idx;
+      const x = scaleX(actualIdx);
+      const isBullish = candle.close >= candle.open;
+      const vH = ((candle.volume || 0) / maxVolume) * volumeHeightLimit;
+
+      ctx.fillStyle = isBullish ? 'rgba(8, 153, 129, 0.28)' : 'rgba(242, 54, 69, 0.28)';
+      ctx.fillRect(x - barWidth / 2, yVolBaseline - vH, barWidth, vH);
+    });
+
+    // 7. Draw Candlesticks
+    // Calculate 200-period simple moving average of volume for transparency factor (RVOL)
     let avgVolume = 1;
     if (candles.length > 0) {
-      const volSum = candles.slice(-200).reduce((sum, c) => sum + (c.volume || 0), 0);
-      avgVolume = (volSum / Math.min(200, candles.length)) || 1;
+      const volSum = candles.slice(-205).reduce((sum, c) => sum + (c.volume || 0), 0);
+      avgVolume = (volSum / Math.min(205, candles.length)) || 1;
     }
 
     visibleCandles.forEach((candle, idx) => {
@@ -411,50 +451,29 @@ export default function TradingChart({
 
       const isBullish = candle.close >= candle.open;
       const rvol = (candle.volume || 1) / avgVolume;
-
-      // Continuous scale:
-      // RVOL = 1 => 50% transparency (0.5 opacity)
-      // RVOL = 2 => 0% transparency (1.0 opacity)
-      // Cap RVOL impact at 2.0 and min at 0.1
       const rvolClamped = Math.max(0.1, Math.min(2.0, rvol));
       
-      let opacity = 0.5;
+      // Map RVOL transparency
+      let opacity = 0.55;
       if (rvolClamped <= 1.0) {
-        opacity = 0.1 + (rvolClamped - 0.1) * (0.4 / 0.9);
+        opacity = 0.2 + (rvolClamped - 0.1) * (0.35 / 0.9);
       } else {
-        opacity = 0.5 + (rvolClamped - 1.0) * 0.5;
+        opacity = 0.55 + (rvolClamped - 1.0) * 0.45;
       }
 
-      // Color continuous shading:
-      // If RVOL <= 1: normal visual colors
-      // If RVOL > 1: morph continuously to rich deeper colors (dark teal / dark maroon/wine)
-      const factor = Math.max(0, Math.min(1, rvolClamped - 1.0)); // 0 at RVOL 1, 1 at RVOL 2
-      
-      let r, g, b;
-      let strokeColor, wickColor;
-      if (isBullish) {
-        // Interpolate bright green (16, 185, 129) to dark teal (4, 120, 120)
-        r = Math.round(16 + (4 - 16) * factor);
-        g = Math.round(185 + (120 - 185) * factor);
-        b = Math.round(129 + (115 - 129) * factor);
-        
-        wickColor = `rgba(${r}, ${g}, ${b}, ${Math.min(1.0, opacity + 0.3)})`;
-        strokeColor = `rgba(${r}, ${g}, ${b}, ${Math.min(1.0, opacity + 0.15)})`;
-      } else {
-        // Interpolate bright rose (244, 63, 94) to dark maroon (120, 10, 10)
-        r = Math.round(244 + (120 - 244) * factor);
-        g = Math.round(63 + (10 - 63) * factor);
-        b = Math.round(94 + (10 - 94) * factor);
-        
-        wickColor = `rgba(${r}, ${g}, ${b}, ${Math.min(1.0, opacity + 0.3)})`;
-        strokeColor = `rgba(${r}, ${g}, ${b}, ${Math.min(1.0, opacity + 0.15)})`;
+      // Beautiful tradingview colors
+      let r = 8, g = 153, b = 129; // Green (#089981)
+      if (!isBullish) {
+        r = 242; g = 54; b = 69; // Red (#f23645)
       }
 
       const bodyColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      const strokeColor = `rgba(${r}, ${g}, ${b}, 0.9)`;
+      const wickColor = `rgba(${r}, ${g}, ${b}, 0.8)`;
 
       // Draw wick
       ctx.strokeStyle = wickColor;
-      ctx.lineWidth = 1.2;
+      ctx.lineWidth = 1.0;
       ctx.beginPath();
       ctx.moveTo(x, yHigh);
       ctx.lineTo(x, yLow);
@@ -463,16 +482,15 @@ export default function TradingChart({
       // Draw body
       ctx.fillStyle = bodyColor;
       ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 1.3;
+      ctx.lineWidth = 1.1;
 
       const bodyTop = Math.min(yOpen, yClose);
-      const bodyHeight = Math.max(1.5, Math.abs(yOpen - yClose));
+      const bodyHeight = Math.max(1.2, Math.abs(yOpen - yClose));
 
       ctx.fillRect(x - barWidth / 2, bodyTop, barWidth, bodyHeight);
       ctx.strokeRect(x - barWidth / 2, bodyTop, barWidth, bodyHeight);
 
-      // Draw volumetric trade dot overlays under/in this candle
-      // Check if ticks are inside this candle timeframe
+      // Render high speed trade dots
       const candleStartSec = candle.time;
       const timeframeSec = timeframe.endsWith('m') ? parseInt(timeframe) * 60 : 60;
       const tickMatches = ticks.filter(
@@ -481,22 +499,20 @@ export default function TradingChart({
           t.ts_ms / 1000 < candleStartSec + timeframeSec
       );
 
-      // Render high speed dots
       if (tickMatches.length > 0) {
         tickMatches.forEach((tick) => {
           const tickY = scaleY(tick.price);
-          const size = Math.min(6, 2.5 + (tick.volume ? Math.sqrt(tick.volume) / 100 : 1.5));
+          const size = Math.min(5, 2.0 + (tick.volume ? Math.sqrt(tick.volume) / 100 : 1.5));
           ctx.beginPath();
           ctx.arc(x, tickY, size, 0, 2 * Math.PI);
-          ctx.fillStyle = isBullish ? `rgba(${r}, ${g}, ${b}, 0.7)` : `rgba(${r}, ${g}, ${b}, 0.7)`;
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.75)`;
           ctx.fill();
         });
       }
     });
 
-    // 7. Render Markers (Psychology signals / Absorption / Vacuums)
+    // 8. Render Markers (Psychology signals / Absorption / Vacuums)
     markers.forEach((marker) => {
-      // Find candle match by time
       const index = candles.findIndex(
         (c) => Math.abs(c.time - marker.time) < 60
       );
@@ -506,9 +522,7 @@ export default function TradingChart({
 
         if (marker.position === 'belowBar') {
           const y = scaleY(candle.low) + 12;
-
-          // Green Arrow Up
-          ctx.fillStyle = '#10b981';
+          ctx.fillStyle = '#089981';
           ctx.beginPath();
           ctx.moveTo(x, y);
           ctx.lineTo(x - 5, y + 8);
@@ -516,15 +530,13 @@ export default function TradingChart({
           ctx.closePath();
           ctx.fill();
 
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = isLight ? '#131722' : '#ffffff';
           ctx.font = 'bold 9px sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText(marker.text, x, y + 18);
         } else {
           const y = scaleY(candle.high) - 12;
-
-          // Red Arrow Down
-          ctx.fillStyle = '#ef4444';
+          ctx.fillStyle = '#f23645';
           ctx.beginPath();
           ctx.moveTo(x, y);
           ctx.lineTo(x - 5, y - 8);
@@ -532,7 +544,7 @@ export default function TradingChart({
           ctx.closePath();
           ctx.fill();
 
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = isLight ? '#131722' : '#ffffff';
           ctx.font = 'bold 9px sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText(marker.text, x, y - 14);
@@ -540,8 +552,8 @@ export default function TradingChart({
       }
     });
 
-    // 8. Draw Custom Trendlines
-    ctx.lineWidth = 1.8;
+    // 9. Draw Custom Trendlines
+    ctx.lineWidth = 1.4;
     ctx.setLineDash([]);
     trendlines.forEach((line) => {
       const startXVal = scaleX(line.startX);
@@ -555,15 +567,15 @@ export default function TradingChart({
       ctx.lineTo(endXVal, endYVal);
       ctx.stroke();
 
-      // Draw endpoints markers
+      // Endpoints markers
       ctx.fillStyle = '#38bdf8';
       ctx.beginPath();
-      ctx.arc(startXVal, startYVal, 3.5, 0, 2 * Math.PI);
-      ctx.arc(endXVal, endYVal, 3.5, 0, 2 * Math.PI);
+      ctx.arc(startXVal, startYVal, 3.0, 0, 2 * Math.PI);
+      ctx.arc(endXVal, endYVal, 3.0, 0, 2 * Math.PI);
       ctx.fill();
     });
 
-    // 9. Draw current drawing trendline (temp drag state)
+    // 10. Draw current drawing trendline (temp drag state)
     if (isDrawMode && dragStartCoords.current && isDragging.current) {
       const currentX = lastMouseX.current;
       const currentY = lastMouseY.current;
@@ -577,21 +589,50 @@ export default function TradingChart({
       ctx.setLineDash([]);
     }
 
-    // 10. Draw Hover crosshair
+    // 11. Draw real-time Last Close horizontal dashed line & indicator badge (TradingView Style)
+    if (candles.length > 0) {
+      const lastCandle = candles[candles.length - 1];
+      const lastCloseY = scaleY(lastCandle.close);
+      const isLtpBullish = lastCandle.close >= lastCandle.open;
+      const ltpColor = isLtpBullish ? '#089981' : '#f23645';
+
+      if (lastCloseY >= paddingTop && lastCloseY <= canvas.height - paddingBottom) {
+        ctx.strokeStyle = ltpColor;
+        ctx.setLineDash([3, 3]);
+        ctx.lineWidth = 0.9;
+        ctx.beginPath();
+        ctx.moveTo(paddingLeft, lastCloseY);
+        ctx.lineTo(canvas.width - paddingRight, lastCloseY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Badge block on right-hand Y Axis
+        ctx.fillStyle = ltpColor;
+        ctx.fillRect(canvas.width - paddingRight, lastCloseY - 9, paddingRight, 18);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 8.5px JetBrains Mono, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(lastCandle.close.toFixed(2), canvas.width - paddingRight + 4, lastCloseY + 3.5);
+      }
+    }
+
+    // 12. Draw Hover crosshair
     if (hoverData) {
       const hoverX = scaleX(hoverData.index);
       const hoverY = scaleY(hoverData.price);
 
       if (hoverX >= paddingLeft && hoverX <= canvas.width - paddingRight) {
-        // Vertical dashed line
-        ctx.strokeStyle = '#1e293b';
+        // Crosshair dashed vertical line
+        ctx.strokeStyle = crosshairColor;
         ctx.setLineDash([3, 3]);
+        ctx.lineWidth = 0.8;
         ctx.beginPath();
         ctx.moveTo(hoverX, paddingTop);
         ctx.lineTo(hoverX, canvas.height - paddingBottom);
         ctx.stroke();
 
-        // Horizontal dashed line
+        // Crosshair dashed horizontal line
         ctx.beginPath();
         ctx.moveTo(paddingLeft, hoverY);
         ctx.lineTo(canvas.width - paddingRight, hoverY);
@@ -599,7 +640,7 @@ export default function TradingChart({
         ctx.setLineDash([]);
 
         // Price indicator pill at right axis
-        ctx.fillStyle = '#0f172a';
+        ctx.fillStyle = isLight ? '#1e222d' : '#0f172a';
         ctx.fillRect(canvas.width - paddingRight, hoverY - 9, paddingRight, 18);
         ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 1;
@@ -611,7 +652,7 @@ export default function TradingChart({
         ctx.fillText(hoverData.price.toFixed(2), canvas.width - paddingRight + 3, hoverY + 3);
 
         // Time indicator pill at bottom axis (TradingView Style)
-        ctx.fillStyle = '#0f172a';
+        ctx.fillStyle = isLight ? '#1e222d' : '#0f172a';
         ctx.fillRect(hoverX - 25, canvas.height - paddingBottom, 50, 15);
         ctx.strokeStyle = '#38bdf8';
         ctx.strokeRect(hoverX - 25, canvas.height - paddingBottom, 50, 15);
@@ -623,8 +664,8 @@ export default function TradingChart({
       }
     }
 
-    // Canvas Frame Border
-    ctx.strokeStyle = '#1e293b';
+    // Canvas Frame Border Outlines
+    ctx.strokeStyle = frameBorderColor;
     ctx.lineWidth = 1;
     ctx.strokeRect(
       paddingLeft,
@@ -632,7 +673,7 @@ export default function TradingChart({
       canvas.width - paddingLeft - paddingRight,
       canvas.height - paddingTop - paddingBottom
     );
-  }, [candles, zoomFactor, offsetBar, trendlines, isDrawMode, hoverData, oiData, supportResistance, bookmarksTrigger, viewVolatility, canvasWidth, currentHeight, markers, ticks]);
+  }, [candles, zoomFactor, offsetBar, trendlines, isDrawMode, hoverData, oiData, supportResistance, bookmarksTrigger, viewVolatility, canvasWidth, currentHeight, markers, ticks, theme]);
 
   // Mouse Handlers
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -791,44 +832,77 @@ export default function TradingChart({
     setTrendlines([]);
   };
 
+  const isLight = theme === 'light';
+
   return (
     <div
       ref={containerRef}
       id={`chart-wrap-${symbol.replace(':', '-')}`}
-      className={`group/chart flex flex-col bg-[#070b14] border border-[#1e293b] rounded-lg shadow-2xl transition-all duration-200 ${
+      className={`group/chart flex flex-col rounded-lg transition-all duration-200 ${
+        isLight
+          ? 'bg-[#ffffff] border border-[#e0e3eb] shadow-sm text-slate-800'
+          : 'bg-[#070b14] border border-[#1e293b] shadow-2xl text-slate-100'
+      } ${
         isFullscreen
-          ? 'fixed inset-4 z-[100] m-0 w-[calc(100vw-32px)] h-[calc(100vh-32px)] bg-[#040810] p-4 flex flex-col'
+          ? `fixed inset-4 z-[100] m-0 w-[calc(100vw-32px)] h-[calc(100vh-32px)] p-4 flex flex-col ${
+              isLight ? 'bg-white' : 'bg-[#040810]'
+            }`
           : 'relative overflow-hidden'
       }`}
     >
       {/* Header toolbar */}
-      <div className="flex items-center justify-between pl-[7px] pr-[3px] pt-0 pb-0 h-[26px] rounded-t-[4px] bg-[#0d1527] border-b border-[#1e293b] gap-1 overflow-hidden">
-        <div className="flex items-center space-x-1.5 min-w-0">
-          <span className="text-[10px] font-bold font-mono px-1.5 py-0 rounded bg-blue-500/15 text-blue-400 border border-blue-500/35">
-            {symbol}
+      <div className={`flex items-center justify-between pl-[5px] pr-[3px] pt-0 pb-0 h-[23px] rounded-t-[4px] border-b gap-1 overflow-hidden transition-colors ${
+        isLight
+          ? 'bg-[#fafafc] border-[#e0e3eb]'
+          : 'bg-[#0d1527] border-[#1e293b]'
+      }`}>
+        <div className="flex items-center space-x-1 min-w-0">
+          {/* Real Circular Logo Icon */}
+          <div className={`w-4 h-4 flex items-center justify-center rounded-full text-[8px] font-extrabold tracking-tighter shrink-0 ${symbolMeta.bg}`}>
+            {symbolMeta.initial}
+          </div>
+          <span className={`text-[9.5px] font-bold font-mono px-1 py-0.5 rounded leading-none ${
+            isLight ? 'bg-[#f1f3f6] text-[#1e222d]' : 'bg-blue-500/15 text-blue-400 border border-blue-500/35'
+          }`}>
+            {symbolMeta.cleanSym}
           </span>
-          <span className="text-[10px] text-slate-400 font-mono hidden sm:inline truncate">
-            {candles.length > 0 ? `LTP: ₹${candles[candles.length - 1].close.toFixed(2)}` : ''}
+          <span className={`text-[9.5px] font-mono hidden sm:inline truncate ${isLight ? 'text-slate-600 font-semibold' : 'text-slate-400'}`}>
+            {candles.length > 0 ? `LTP: ₹${candles[candles.length - 1].close.toFixed(1)}` : ''}
           </span>
           {isFullscreen && (
-            <span className="text-[9px] text-emerald-400 bg-emerald-500/10 px-1 py-0 rounded animate-pulse font-bold uppercase font-mono">
+            <span className="text-[9px] text-emerald-400 bg-emerald-500/10 px-1 py-0 rounded font-bold uppercase font-mono">
               MTF Spot Popout
             </span>
           )}
         </div>
 
         {/* Hover-revealed tools */}
-        <div className="flex items-center space-x-2 transition-opacity duration-200 opacity-0 group-hover/chart:opacity-100 pointer-events-none group-hover/chart:pointer-events-auto shrink-0">
+        <div className="flex items-center space-x-1.5 transition-opacity duration-200 opacity-0 group-hover/chart:opacity-100 pointer-events-none group-hover/chart:pointer-events-auto shrink-0">
+          {/* Dynamic Theme Switcher */}
+          <button
+            onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+            className={`px-1 py-0.5 rounded text-[8px] font-mono font-bold transition-colors ${
+              isLight
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                : 'bg-slate-850 hover:bg-slate-750 text-slate-300'
+            }`}
+            title="Toggle theme mood between Light & Dark"
+          >
+            {isLight ? 'DARK' : 'LIGHT'}
+          </button>
+
           {/* Timeframe Buttons */}
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-0.5 animate-none">
             {['1m', '3m', '5m', '15m', '1h'].map((tf) => (
               <button
                 key={tf}
                 onClick={() => setTimeframe(tf)}
-                className={`px-1 py-0 rounded text-[9.5px] font-medium transition-colors ${
+                className={`px-1 py-0 rounded text-[9px] font-bold transition-colors ${
                   timeframe === tf
-                    ? 'bg-blue-600 text-white font-bold shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-blue-600 text-white font-bold'
+                    : isLight
+                      ? 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 {tf}
@@ -837,52 +911,66 @@ export default function TradingChart({
           </div>
 
           {/* Dynamic Controls */}
-          <div className="flex items-center space-x-1">
+          <div className="flex items-center space-x-0.5">
             <button
               onClick={() => setViewVolatility(!viewVolatility)}
-              className={`p-0.5 rounded text-[10px] transition-colors flex items-center gap-0.5 ${
-                viewVolatility ? 'bg-sky-500/15 text-sky-400' : 'text-slate-400 hover:bg-slate-800'
+              className={`p-0.5 rounded text-[9px] transition-colors flex items-center gap-0.5 ${
+                viewVolatility
+                  ? 'bg-sky-500/10 text-sky-400'
+                  : isLight
+                    ? 'text-slate-500 hover:bg-slate-100'
+                    : 'text-slate-400 hover:bg-slate-800'
               }`}
               title="Volatility Overlays"
             >
-              <Play className="w-3 h-3 rotate-90" />
-              <span className="text-[9px] uppercase hidden md:inline">VOL BANDS</span>
+              <Play className="w-2.5 h-2.5 rotate-90" />
+              <span className="text-[8.5px] uppercase hidden md:inline">VOL</span>
             </button>
 
             <button
               onClick={() => setIsDrawMode(!isDrawMode)}
-              className={`p-0.5 rounded text-[10px] transition-colors flex items-center gap-0.5 ${
-                isDrawMode ? 'bg-[#f43f5e]/15 text-[#f43f5e]' : 'text-slate-400 hover:bg-slate-800'
+              className={`p-0.5 rounded text-[9px] transition-colors flex items-center gap-0.5 ${
+                isDrawMode
+                  ? 'bg-[#f43f5e]/10 text-[#f43f5e]'
+                  : isLight
+                    ? 'text-slate-500 hover:bg-slate-100'
+                    : 'text-slate-400 hover:bg-slate-800'
               }`}
               title="Interactive Quick-Draw Line"
             >
-              <Edit className="w-3 h-3" />
-              <span className="text-[9px] uppercase hidden md:inline">Draw Line</span>
+              <Edit className="w-2.5 h-2.5" />
+              <span className="text-[8.5px] uppercase hidden md:inline">Draw</span>
             </button>
 
             {trendlines.length > 0 && (
               <button
                 onClick={clearLines}
-                className="p-0.5 rounded text-[10px] text-rose-400 hover:bg-slate-800"
+                className={`p-0.5 rounded text-[10px] text-rose-400 transition-colors ${
+                  isLight ? 'hover:bg-slate-100' : 'hover:bg-slate-800'
+                }`}
                 title="Clear custom lines"
               >
                 <Trash2 className="w-3 h-3" />
               </button>
             )}
 
-            <div className="h-3 w-px bg-slate-800" />
+            <div className={`h-3 w-px ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`} />
 
             {/* Manual Zoom buttons */}
             <button
               onClick={() => setZoomFactor((prev) => Math.max(12, prev - 8))}
-              className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
+              className={`p-0.5 rounded transition-colors ${
+                isLight ? 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
               title="Zoom In"
             >
               <ZoomIn className="w-3 h-3" />
             </button>
             <button
               onClick={() => setZoomFactor((prev) => Math.min(120, prev + 8))}
-              className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
+              className={`p-0.5 rounded transition-colors ${
+                isLight ? 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
               title="Zoom Out"
             >
               <ZoomOut className="w-3 h-3" />
@@ -892,18 +980,22 @@ export default function TradingChart({
                 setOffsetBar(0);
                 setZoomFactor(35);
               }}
-              className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
+              className={`p-0.5 rounded transition-colors ${
+                isLight ? 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
               title="Reset Panning Index"
             >
               <RotateCcw className="w-3 h-3" />
             </button>
 
-            <div className="h-3 w-px bg-slate-800" />
+            <div className={`h-3 w-px ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`} />
 
             {/* Pop-out fullscreen button */}
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white flex items-center gap-0.5 transition-all"
+              className={`p-0.5 rounded transition-colors flex items-center gap-0.5 ${
+                isLight ? 'text-slate-500 hover:bg-slate-100 hover:text-slate-900' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
               title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Chart Popout"}
             >
               {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 text-sky-400" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -922,35 +1014,39 @@ export default function TradingChart({
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onWheel={handleWheel}
-          className="block w-full h-full cursor-crosshair border-b border-[#111827]"
+          className={`block w-full h-full cursor-crosshair border-b ${
+            isLight ? 'border-[#e0e3eb]' : 'border-[#111827]'
+          }`}
         />
 
         {/* Hover info overlay floating HUD */}
         {hoverData && (
-          <div className="absolute top-2 left-4 px-2 py-1 bg-[#111827]/90 text-[10px] text-slate-300 rounded border border-[#1e293b] font-mono pointer-events-none z-20 flex space-x-3 shadow-lg">
+          <div className={`absolute top-2 left-4 px-2 py-1 text-[10px] rounded font-mono pointer-events-none z-20 flex space-x-3 shadow-lg ${
+            isLight ? 'bg-white/95 text-slate-800 border border-slate-200' : 'bg-[#111827]/90 text-slate-300 border border-[#1e293b]'
+          }`}>
             <span>
-              TIME: <span className="text-white">{hoverData.time}</span>
+              TIME: <span className={isLight ? 'text-slate-950 font-bold' : 'text-white'}>{hoverData.time}</span>
             </span>
             <span>
-              SEL: <span className="text-sky-400">₹{hoverData.price.toFixed(2)}</span>
+              SEL: <span className="text-sky-500 font-bold">₹{hoverData.price.toFixed(2)}</span>
             </span>
             {candles[hoverData.index] && (
               <>
                 <span>
-                  O: <span className="text-emerald-400">{candles[hoverData.index].open.toFixed(1)}</span>
+                  O: <span className="text-[#089981] font-semibold">{candles[hoverData.index].open.toFixed(1)}</span>
                 </span>
                 <span>
-                  H: <span className="text-emerald-400">{candles[hoverData.index].high.toFixed(1)}</span>
+                  H: <span className="text-[#089981] font-semibold">{candles[hoverData.index].high.toFixed(1)}</span>
                 </span>
                 <span>
-                  L: <span className="text-rose-400">{candles[hoverData.index].low.toFixed(1)}</span>
+                  L: <span className="text-[#f23645] font-semibold">{candles[hoverData.index].low.toFixed(1)}</span>
                 </span>
                 <span>
-                  C: <span className="text-emerald-400">{candles[hoverData.index].close.toFixed(1)}</span>
+                  C: <span className="text-[#089981] font-semibold">{candles[hoverData.index].close.toFixed(1)}</span>
                 </span>
                 <span>
                   VOL:{' '}
-                  <span className="text-yellow-400">
+                  <span className="text-amber-500 font-semibold">
                     {candles[hoverData.index].volume.toLocaleString()}
                   </span>
                 </span>
@@ -961,8 +1057,8 @@ export default function TradingChart({
 
         {/* Draw Line Active HUD alert */}
         {isDrawMode && (
-          <div className="absolute top-2 right-4 px-2 py-1 bg-rose-500/10 text-[10px] text-rose-400 rounded border border-rose-500/20 font-bold pointer-events-none animate-pulse z-20 shadow-lg">
-            DRAG & DRAW ON CHART ACTIVE
+          <div className="absolute top-2 right-4 px-1.5 py-0.5 bg-rose-500/10 text-[9.5px] text-rose-400 rounded border border-rose-500/35 font-bold pointer-events-none z-20">
+            QUICK-DRAW ACTIVE
           </div>
         )}
       </div>

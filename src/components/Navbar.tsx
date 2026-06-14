@@ -69,14 +69,14 @@ export default function Navbar({
             { id: 'strategy', title: 'ALERTS & LEGS' },
           ].map((tab) => (
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-2.5 py-0.5 rounded text-[10px] font-sans font-bold transition-all ${
-                activeTab === tab.id
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-850/50'
-              }`}
-            >
+               key={tab.id}
+               onClick={() => setActiveTab(tab.id)}
+               className={`px-2.5 py-0.5 rounded text-[10px] font-sans font-bold transition-all ${
+                 activeTab === tab.id
+                   ? 'bg-blue-600 text-white'
+                   : 'text-slate-400 hover:text-white hover:bg-slate-850/50'
+               }`}
+             >
               {tab.title}
             </button>
           ))}
@@ -92,7 +92,7 @@ export default function Navbar({
                 onClick={() => setUnderlying(idx)}
                 className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold transition-all ${
                   underlying === idx
-                    ? 'bg-indigo-600 text-white shadow'
+                    ? 'bg-indigo-600 text-white'
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
@@ -124,7 +124,7 @@ export default function Navbar({
 
           {/* Server status indicator wrapper */}
           <div className="flex items-center space-x-1 px-2 py-0.5 bg-[#0b0f19] border border-slate-850 rounded text-xs font-mono">
-            <Wifi className={`w-3.5 h-3.5 ${isConnected ? 'text-emerald-400 animate-pulse' : 'text-slate-600'}`} />
+            <Wifi className={`w-3.5 h-3.5 ${isConnected ? 'text-emerald-400' : 'text-slate-600'}`} />
             <span className="text-[9.5px] font-bold text-slate-400">
               {isConnected ? `${latency}ms` : 'OFFLINE'}
             </span>
@@ -134,9 +134,9 @@ export default function Navbar({
 
       {/* Synchronized Replay Controls (Only active when Operating in REPLAY Mode) */}
       {mode === 'REPLAY' && (
-        <div className="py-1 px-2.5 bg-gradient-to-r from-purple-950/20 to-indigo-950/20 border border-purple-900/30 rounded-lg flex flex-col md:flex-row items-center justify-between gap-2 text-[11px] leading-none">
+        <div className="py-1 px-2.5 bg-[#0d1323] border border-purple-900/35 rounded-lg flex flex-col md:flex-row items-center justify-between gap-2 text-[11px] leading-none">
           <div className="flex items-center space-x-2">
-            <Radio className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+            <Radio className="w-3.5 h-3.5 text-purple-450" />
             <span className="font-mono font-bold text-slate-300">TICK REPLAY PAYBACK UNIT:</span>
           </div>
 

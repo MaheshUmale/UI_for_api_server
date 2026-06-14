@@ -320,7 +320,7 @@ export default function ScalperTab({
     <div className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         {/* ROW 1 COLUMN 1: LEVEL 2 DEPTH LADDER (HIGH SPEED TICK WORKSPACE) */}
-        <div className="lg:col-span-4 bg-[#080d1a] border border-[#1e293b] rounded-lg p-3 flex flex-col h-[480px]">
+        <div className="lg:col-span-4 bg-[#080d1a] border border-[#1e293b] rounded-lg p-2.5 flex flex-col h-[415px]">
           <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-2-shrink-0">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1">
               <Zap className="w-4 h-4 text-emerald-400" />
@@ -366,7 +366,7 @@ export default function ScalperTab({
                     <div
                       className={`col-span-4 py-0.5 font-bold ${
                         isUnderlyingMatch
-                          ? 'text-sky-300 text-xs font-black animate-pulse'
+                          ? 'text-sky-300 text-xs font-black'
                           : row.isHVN
                           ? 'text-purple-300'
                           : 'text-slate-200'
@@ -407,7 +407,7 @@ export default function ScalperTab({
         </div>
 
         {/* COLUMN 2: CUSTOM MACHINE LEARNING SYNAPSE BRAIN */}
-        <div className="lg:col-span-5 bg-[#080d1a] border border-[#1e293b] rounded-lg p-3 flex flex-col h-[480px]">
+        <div className="lg:col-span-5 bg-[#080d1a] border border-[#1e293b] rounded-lg p-2.5 flex flex-col h-[415px]">
           <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-3 flex-shrink-0">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1">
               <Cpu className="w-4 h-4 text-purple-400" />
@@ -476,7 +476,7 @@ export default function ScalperTab({
         </div>
 
         {/* COLUMN 3: QUANT LOG EXECUTION AND QUICK SETTINGS ACTIONS */}
-        <div className="lg:col-span-3 bg-[#080d1a] border border-[#1e293b] rounded-lg p-3 flex flex-col h-[480px]">
+        <div className="lg:col-span-3 bg-[#080d1a] border border-[#1e293b] rounded-lg p-2.5 flex flex-col h-[415px]">
           <div className="border-b border-slate-800 pb-1.5 mb-3 flex-shrink-0">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1">
               <Cpu className="w-4 h-4 text-[#f43f5e]" />
@@ -608,7 +608,7 @@ export default function ScalperTab({
             <Cpu className="w-4 h-4 text-emerald-400" />
             REAL-TIME MARKET MICROSTRUCTURE DEPTH & RVOL FLUX ANALYZER
           </h3>
-          <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 animate-pulse">
+          <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
             ● FEED ONLINE
           </span>
         </div>

@@ -4,7 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import { Play, TrendingUp, AlertTriangle, PlayCircle, Layers, Sliders, CheckCircle, Activity, Sparkles, XCircle, BadgeAlert, Pause, Trash2, CheckCircle2 } from 'lucide-react';
+import { Play, TrendingUp, AlertTriangle, PlayCircle, Layers, Sliders, CheckCircle, Activity, Sparkles, XCircle, BadgeAlert, Pause, Trash2, CheckCircle2, Pin, PinOff, ChevronDown, ChevronUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Candle, MarketTick, TradeLog, Position, BrainSignal, Alert } from '../types';
 import TradingChart from './TradingChart';
 
@@ -61,6 +62,16 @@ export default function MainTab({
 
   const [activeTabLogs, setActiveTabLogs] = useState<'brain' | 'trades'>('brain');
 
+  const [isPinned, setIsPinned] = useState<boolean>(false);
+  const [isManuallyCollapsed, setIsManuallyCollapsed] = useState<boolean | null>(null);
+
+  // Auto-visibility rules: Stay open if pinned, OR if active positions exist (unless explicitly collapsed).
+  // Otherwise, default to collapsed to keep the chart maximized.
+  const isBottomVisible = isPinned || (positions.length > 0 && isManuallyCollapsed !== true) || isManuallyCollapsed === false;
+
+  // Chart height expands dramatically to utilize the screen real estate when collapsed
+  const chartHeight = isBottomVisible ? 210 : 430;
+
   // Multi-timeframe volatility markers mock overlay
   const niftyLTP = candlesNifty.length > 0 ? candlesNifty[candlesNifty.length - 1].close : 22150;
   const callLTP = candlesCall.length > 0 ? candlesCall[candlesCall.length - 1].close : 120.5;
@@ -91,17 +102,17 @@ export default function MainTab({
   };
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-1.5">
       {/* SECTION 1: SIDE-BY-SIDE SYNCHRONIZED CHARTS WORKSPACE */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5">
         {/* Spot Chart */}
-        <div className="lg:col-span-1 space-y-1">
-          <div className="flex items-center justify-between border-b border-sky-500/20 pb-0.5">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1 font-sans">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-              NIFTY SPOT INDEX
+        <div className="lg:col-span-1 space-y-0.5">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-0.5">
+            <h3 className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 font-mono">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+              NIFTY SPOT
             </h3>
-            <span className="text-xs text-sky-400 font-mono font-bold">₹{niftyLTP.toFixed(2)}</span>
+            <span className="text-[11px] text-sky-400 font-mono font-bold">₹{niftyLTP.toFixed(2)}</span>
           </div>
           <TradingChart
             symbol="NSE:NIFTY"
@@ -110,18 +121,18 @@ export default function MainTab({
             supportResistance={supportResistance}
             timeframe={timeframeNifty}
             setTimeframe={setTimeframeNifty}
-            height={300}
+            height={chartHeight}
           />
         </div>
 
         {/* CE Option Chart */}
-        <div className="lg:col-span-1 space-y-1">
-          <div className="flex items-center justify-between border-b border-emerald-500/20 pb-0.5">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1 font-sans">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              CE Option Premium
+        <div className="lg:col-span-1 space-y-0.5">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-0.5">
+            <h3 className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 font-mono">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              CE PREMIUM
             </h3>
-            <span className="text-[11px] text-emerald-400 font-mono font-bold truncate max-w-[150px]">
+            <span className="text-[10.5px] text-emerald-400 font-mono font-bold truncate max-w-[150px]">
               {selectedCeStrike || 'ATM Call'} @ ₹{callLTP.toFixed(2)}
             </span>
           </div>
@@ -131,18 +142,18 @@ export default function MainTab({
             timeframe={timeframeCall}
             setTimeframe={setTimeframeCall}
             ticks={ticks.filter((t) => t.instrumentKey.includes('CE'))}
-            height={300}
+            height={chartHeight}
           />
         </div>
 
         {/* PE Option Chart */}
-        <div className="lg:col-span-1 space-y-1">
-          <div className="flex items-center justify-between border-b border-rose-500/20 pb-0.5">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1 font-sans">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-              PE Option Premium
+        <div className="lg:col-span-1 space-y-0.5">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-0.5">
+            <h3 className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 font-mono">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              PE PREMIUM
             </h3>
-            <span className="text-[11px] text-rose-400 font-mono font-bold truncate max-w-[150px]">
+            <span className="text-[10.5px] text-rose-400 font-mono font-bold truncate max-w-[150px]">
               {selectedPeStrike || 'ATM Put'} @ ₹{putLTP.toFixed(2)}
             </span>
           </div>
@@ -152,12 +163,92 @@ export default function MainTab({
             timeframe={timeframePut}
             setTimeframe={setTimeframePut}
             ticks={ticks.filter((t) => t.instrumentKey.includes('PE'))}
-            height={300}
+            height={chartHeight}
           />
         </div>
       </div>
 
-      {/* QUICK INTRADAY OPTION BUYER ACTIONS RAIL */}
+      {/* Sleek, Low-Profile Collapsible Terminal Dock Handle */}
+      <div 
+        onClick={() => setIsManuallyCollapsed(isBottomVisible ? true : false)}
+        className={`flex items-center justify-between px-3 py-1.5 rounded-lg border cursor-pointer select-none transition-all duration-200 mt-2 ${
+          isBottomVisible
+            ? 'bg-[#0d1323] border-[#1e293b] hover:border-slate-700'
+            : 'bg-[#080d1a] border-dashed border-indigo-500/35 hover:border-indigo-400 hover:bg-[#0c1224]'
+        }`}
+      >
+        <div className="flex items-center space-x-3 text-xs">
+          <div className="flex items-center space-x-1.5 font-bold tracking-wider font-mono">
+            <span className={`w-2 h-2 rounded-full ${isBottomVisible ? 'bg-emerald-500' : 'bg-indigo-500'}`} />
+            <span className={isBottomVisible ? 'text-slate-200' : 'text-indigo-400'}>
+              TRADING DESK TERMINAL
+            </span>
+          </div>
+          <div className="hidden sm:flex items-center space-x-2 font-mono text-[11px] text-slate-400">
+            <span>•</span>
+            <span>
+              Positions:{' '}
+              {positions.length > 0 ? (
+                <span className={`font-bold ${totalUnrealizedPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {positions.length} ACTIVE (₹{totalUnrealizedPnL >= 0 ? '+' : ''}{totalUnrealizedPnL.toFixed(2)})
+                </span>
+              ) : (
+                <span className="font-semibold text-slate-500">None</span>
+              )}
+            </span>
+            <span>•</span>
+            <span>
+              Triggers: <span className="font-bold text-amber-500">{alerts.length} Active</span>
+            </span>
+            {!isBottomVisible && (
+              <>
+                <span>•</span>
+                <span className="text-[10.5px] italic text-indigo-400 flex items-center gap-1">
+                  Click bar to expand terminal controls
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Action controllers on Right */}
+        <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+          {/* PIN Toggle */}
+          <button
+            onClick={() => setIsPinned(!isPinned)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[10.5px] font-mono font-bold transition-all active:scale-95 border ${
+              isPinned
+                ? 'bg-blue-600/25 border-blue-500/80 text-blue-400 hover:bg-blue-600/35'
+                : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'
+            }`}
+            title={isPinned ? 'Pin active: Panel will stay open' : 'Pin panel to keep it open'}
+          >
+            {isPinned ? <Pin className="w-3.5 h-3.5 fill-current" /> : <PinOff className="w-3.5 h-3.5" />}
+            {isPinned ? 'PINNED' : 'PIN CONSOLE'}
+          </button>
+
+          {/* Toggle Panel button */}
+          <button
+            onClick={() => setIsManuallyCollapsed(isBottomVisible ? true : false)}
+            className="p-1 rounded bg-slate-900 border border-slate-800 hover:text-white text-slate-400 transition-all"
+            title={isBottomVisible ? 'Collapse Panel' : 'Expand Panel'}
+          >
+            {isBottomVisible ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
+
+      <AnimatePresence initial={false}>
+        {isBottomVisible && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: "easeInOut" }}
+            style={{ overflow: "hidden" }}
+            className="space-y-2.5 pt-1"
+          >
+            {/* QUICK INTRADAY OPTION BUYER ACTIONS RAIL */}
       <div className="flex flex-wrap items-center justify-between p-2 bg-[#0d1323] border border-[#1e293b] rounded-lg gap-2">
         <div className="flex items-center space-x-2">
           <span className="text-xs font-mono font-semibold text-slate-400 flex items-center gap-1">
@@ -209,7 +300,7 @@ export default function MainTab({
       {/* SECTION 2: SIGNAL logs, LIVE EXECUTED TAPE, RISK MANAGEMENT & PNL BOARD */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
         {/* Left Area: Brain Signals vs Tape Logs */}
-        <div className="lg:col-span-7 bg-[#080d1a] border border-[#1e293b] rounded-lg p-2.5 flex flex-col h-[240px]">
+        <div className="lg:col-span-7 bg-[#080d1a] border border-[#1e293b] rounded-lg p-2 flex flex-col h-[180px]">
           <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2 flex-shrink-0">
             <div className="flex items-center space-x-1 border border-slate-800 rounded bg-[#0b0f19] p-0.5">
               <button
@@ -349,7 +440,7 @@ export default function MainTab({
         </div>
 
         {/* Right Area: Armed alert rules */}
-        <div className="lg:col-span-5 bg-[#080d1a] border border-[#1e293b] rounded-lg p-2.5 flex flex-col h-[240px]">
+        <div className="lg:col-span-5 bg-[#080d1a] border border-[#1e293b] rounded-lg p-2 flex flex-col h-[180px]">
           <div className="border-b border-slate-800 pb-2 mb-2 flex-shrink-0">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 font-sans">
               <BadgeAlert className="w-4 h-4 text-[#f43f5e]" />
@@ -359,32 +450,32 @@ export default function MainTab({
 
           <div className="flex-grow overflow-y-auto pr-1 text-xs custom-scroll font-mono">
             {alerts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-slate-500 text-center">
-                <BadgeAlert className="w-8 h-8 text-slate-600 mb-1.5 animate-pulse" />
+              <div className="flex flex-col items-center justify-center py-10 text-slate-500 text-center">
+                <BadgeAlert className="w-6 h-6 text-slate-600 mb-1" />
                 <span className="text-xs font-semibold text-slate-400">No armed option triggers active.</span>
                 <span className="text-[10px] text-slate-600 mt-1">Define multi-leg spot alerts in ALERTS & LEGS tab.</span>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {alerts.map((al) => (
                   <div
                     key={al.id}
-                    className="p-2.5 bg-[#0d1527] border border-slate-800 rounded-lg hover:border-slate-700 transition-all flex items-center justify-between"
+                    className="p-1.5 bg-[#0d1527] border border-slate-800 rounded-lg hover:border-slate-700 transition-all flex items-center justify-between"
                   >
                     <div>
-                      <div className="flex items-center gap-1.5 mb-1">
+                      <div className="flex items-center gap-1.5 mb-0.5">
                         <span
                           className={`w-2 h-2 rounded-full ${
                             al.status === 'active'
-                              ? 'bg-emerald-500 animate-pulse'
+                              ? 'bg-emerald-500'
                               : al.status === 'paused'
                               ? 'bg-amber-500'
                               : 'bg-rose-500'
                           }`}
                         />
-                        <span className="font-bold text-white text-[11px] truncate">{al.name}</span>
+                        <span className="font-bold text-white text-[10.5px] truncate">{al.name}</span>
                       </div>
-                      <span className="text-[9.5px] text-purple-400 block font-bold leading-none uppercase">
+                      <span className="text-[9px] text-purple-400 block font-bold leading-none uppercase">
                         Rule: {al.condition}
                       </span>
                     </div>
@@ -423,6 +514,9 @@ export default function MainTab({
           </div>
         </div>
       </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

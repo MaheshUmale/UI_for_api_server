@@ -58,31 +58,31 @@ export default function DbQueryTab({
     : [];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-1.5">
       {/* Dynamic Tables catalog list */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-1.5">
         {tables.length === 0 ? (
-          <div className="p-3 bg-[#0d1323] border border-slate-800 rounded-lg col-span-4 flex items-center justify-center text-xs text-slate-500 font-mono">
+          <div className="p-2 bg-[#0d1323] border border-slate-800 rounded-lg col-span-4 flex items-center justify-center text-xs text-slate-500 font-mono">
             Scanning local DuckDB database catalog tables...
           </div>
         ) : (
           tables.map((table) => (
             <div
               key={table.name}
-              className="p-3 bg-[#0d1323] border border-slate-800 hover:border-slate-700 transition-colors rounded-lg flex items-center justify-between"
+              className="p-2 bg-[#0d1323] border border-slate-800 hover:border-slate-700 transition-colors rounded-lg flex items-center justify-between"
             >
-              <div className="flex items-center space-x-2.5">
-                <HardDrive className="w-5 h-5 text-indigo-400" />
+              <div className="flex items-center space-x-2">
+                <HardDrive className="w-4 h-4 text-indigo-400" />
                 <div>
                   <span className="text-xs font-mono font-bold text-white block">
                     "{table.name}"
                   </span>
-                  <span className="text-[10px] text-slate-500 font-mono">
+                  <span className="text-[9.5px] text-slate-500 font-mono block leading-none">
                     Schema: {table.schema.map((s) => s.name).slice(0, 3).join(', ')}...
                   </span>
                 </div>
               </div>
-              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
                 {table.row_count.toLocaleString()} rows
               </span>
             </div>
@@ -91,9 +91,9 @@ export default function DbQueryTab({
       </div>
 
       {/* SQL Editing and script executions */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-1.5">
         {/* SQL Console Console Panel */}
-        <div className="lg:col-span-8 bg-[#080d1a] border border-[#1e293b] rounded-lg p-3 flex flex-col h-[450px]">
+        <div className="lg:col-span-8 bg-[#080d1a] border border-[#1e293b] rounded-lg p-2.5 flex flex-col h-[380px]">
           <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-3 flex-shrink-0">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 font-sans">
               <Terminal className="w-4 h-4 text-sky-400" />
@@ -146,7 +146,7 @@ export default function DbQueryTab({
         </div>
 
         {/* Database Quick Reference */}
-        <div className="lg:col-span-4 bg-[#080d1a] border border-[#1e293b] rounded-lg p-3 flex flex-col h-[450px]">
+        <div className="lg:col-span-4 bg-[#080d1a] border border-[#1e293b] rounded-lg p-2.5 flex flex-col h-[380px]">
           <div className="border-b border-slate-800 pb-1.5 mb-2 flex-shrink-0">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 font-sans">
               <Info className="w-4 h-4 text-[#a855f7]" />

@@ -158,10 +158,10 @@ export default function StrategyAlertsTab({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
         {/* ROW 1: OPTION STRATEGIST PAYOFF MODULE */}
-        <div className="lg:col-span-8 bg-[#080d1a] border border-[#1e293b] rounded-lg p-3 flex flex-col min-h-[460px]">
+        <div className="lg:col-span-8 bg-[#080d1a] border border-[#1e293b] rounded-lg p-2.5 flex flex-col min-h-[380px]">
           <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-3 flex-shrink-0">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 font-sans">
               <Compass className="w-4 h-4 text-emerald-400" />
@@ -404,7 +404,7 @@ export default function StrategyAlertsTab({
         </div>
 
         {/* ROW 1: DYNAMIC ALERTS CREATOR PANEL */}
-        <div className="lg:col-span-4 bg-[#080d1a] border border-[#1e293b] rounded-lg p-3 flex flex-col min-h-[460px]">
+        <div className="lg:col-span-4 bg-[#080d1a] border border-[#1e293b] rounded-lg p-2.5 flex flex-col min-h-[380px]">
           <div className="border-b border-slate-800 pb-1.5 mb-3 flex-shrink-0">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 font-sans">
               <Bell className="w-4 h-4 text-sky-400" />

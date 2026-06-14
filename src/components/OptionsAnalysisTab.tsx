@@ -76,66 +76,66 @@ export default function OptionsAnalysisTab({
     : 1000000;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* SECTION 1: PCR CONFLUENCE METRIC HEADER */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div className="p-3 bg-[#0d1323] border border-slate-800 rounded-lg">
-          <span className="text-[10px] font-mono text-slate-500 uppercase block">SPOT VS ATM BASE</span>
-          <div className="flex items-baseline space-x-2 mt-1">
-            <span className="text-lg font-mono font-bold text-white">₹{spotPrice.toFixed(2)}</span>
-            <span className="text-xs text-sky-400 font-mono">ATM: {atmBaseStrike}</span>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-1.5">
+        <div className="p-2 bg-[#0d1323] border border-slate-800 rounded-lg">
+          <span className="text-[9px] font-mono text-slate-500 uppercase block leading-none">SPOT VS ATM BASE</span>
+          <div className="flex items-baseline space-x-1.5 mt-0.5">
+            <span className="text-sm font-mono font-bold text-white">₹{spotPrice.toFixed(2)}</span>
+            <span className="text-[10px] text-sky-400 font-mono">ATM: {atmBaseStrike}</span>
           </div>
-          <span className="text-[10px] text-slate-400 block mt-1">
-            Distance to base:{' '}
+          <span className="text-[9px] text-slate-400 block mt-0.5 leading-none">
+            Distance:{' '}
             <span className="font-mono text-slate-200">
               {Math.abs(spotPrice - atmBaseStrike).toFixed(1)} pts
             </span>
           </span>
         </div>
 
-        <div className="p-3 bg-[#0d1323] border border-slate-800 rounded-lg">
-          <span className="text-[10px] font-mono text-slate-500 uppercase block">PUT-CALL RATIO (PCR)</span>
-          <div className="flex items-baseline space-x-2 mt-1">
+        <div className="p-2 bg-[#0d1323] border border-slate-800 rounded-lg">
+          <span className="text-[9px] font-mono text-slate-500 uppercase block leading-none">PUT-CALL RATIO (PCR)</span>
+          <div className="flex items-baseline space-x-1.5 mt-0.5">
             <span
-              className={`text-lg font-mono font-bold ${
+              className={`text-sm font-mono font-bold ${
                 latestPcr.pcr_oi >= 1.0 ? 'text-emerald-400' : 'text-amber-400'
               }`}
             >
               {latestPcr.pcr_oi.toFixed(2)}
             </span>
-            <span className="text-xs text-slate-400 font-mono">OI Weighted</span>
+            <span className="text-[10px] text-slate-400 font-mono">OI Weighted</span>
           </div>
-          <span className="text-[10px] text-slate-400 block mt-1">
+          <span className="text-[9px] text-slate-400 block mt-0.5 leading-none">
             PCR Vol:{' '}
             <span className="font-mono text-slate-200">{(latestPcr.pcr_vol || 1.05).toFixed(2)}</span>
           </span>
         </div>
 
-        <div className="p-3 bg-[#0d1323] border border-slate-800 rounded-lg">
-          <span className="text-[10px] font-mono text-slate-500 uppercase block">IMPLIED VOLATILITY (IV)</span>
-          <div className="flex items-baseline space-x-2 mt-1">
-            <span className="text-lg font-mono font-bold text-sky-400">14.82%</span>
-            <span className="text-xs text-slate-400 font-mono">ATM Median</span>
+        <div className="p-2 bg-[#0d1323] border border-slate-800 rounded-lg">
+          <span className="text-[9px] font-mono text-slate-500 uppercase block leading-none">IMPLIED VOLATILITY (IV)</span>
+          <div className="flex items-baseline space-x-1.5 mt-0.5">
+            <span className="text-sm font-mono font-bold text-sky-400">14.82%</span>
+            <span className="text-[10px] text-slate-400 font-mono">ATM Median</span>
           </div>
-          <span className="text-[10px] text-slate-400 block mt-1">
+          <span className="text-[9px] text-slate-400 block mt-0.5 leading-none">
             Rank IP:{' '}
-            <span className="font-mono text-emerald-400">42% (Bull Call friendly)</span>
+            <span className="font-mono text-emerald-400 font-semibold">42% (Bull Call friendly)</span>
           </span>
         </div>
 
-        <div className="p-3 bg-[#0d1323] border border-slate-800 rounded-lg flex flex-col justify-between">
-          <span className="text-[10px] font-mono text-slate-500 uppercase block">BACKFILL METADATA</span>
+        <div className="p-2 bg-[#0d1323] border border-slate-800 rounded-lg flex flex-col justify-between">
+          <span className="text-[9px] font-mono text-slate-500 uppercase block leading-none">BACKFILL METADATA</span>
           <button
             onClick={triggerBackfill}
             disabled={isBackfilling}
-            className={`w-full py-1.5 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95 border ${
+            className={`w-full py-1 rounded text-[10px] font-bold transition-all flex items-center justify-center gap-1 active:scale-95 border ${
               isBackfilling
                 ? 'bg-[#1e293b]/50 border-[#1e293b] text-slate-500 cursor-not-allowed'
                 : 'bg-indigo-600/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-600/15 hover:border-indigo-500/35'
             }`}
           >
-            <Zap className={`w-3.5 h-3.5 ${isBackfilling ? 'animate-pulse' : ''}`} />
-            {isBackfilling ? 'BACKFILLING DATA...' : 'BACKFILL OPTIONS HIST'}
+            <Zap className="w-3 h-3" />
+            {isBackfilling ? 'BACKFILLING...' : 'BACKFILL OPTIONS HIST'}
           </button>
         </div>
       </div>
