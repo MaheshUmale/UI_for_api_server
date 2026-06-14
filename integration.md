@@ -124,6 +124,7 @@ All interactive code sits in the `/src/` workspace:
         ├── Navbar.tsx        # High-density header, market index tickers, and mode toggle
         ├── TradingChart.tsx  # Dynamic performance-driven canvas charting engine
         ├── MainTab.tsx       # Spot & CE/PE premium twin layout terminal
+        ├── ChartsTab.tsx     # Custom 1/2/4 multi-grid chart analyzer layout with dropdown search
         ├── ScalperTab.tsx    # Order-depth bid-ask ladder and confluence signal feed
         ├── OptionsAnalysisTab.tsx # PCR metrics, IV charts, and option chains
         ├── StrategyAlertsTab.tsx  # Interactive Option strategists & multi-leg payoff graph
@@ -153,7 +154,13 @@ All interactive code sits in the `/src/` workspace:
   - To change indicator equations (such as EMA calculations), see the indicator compilation block.
 
 #### Scenario E: You need to adjust the heights/scaling of dashboard cards
-- **Where to look**: Tab container heights are hardcoded into standard Tailwind sizes for pristine high-visibility sizing (e.g., `h-[380px]` or `min-h-[380px]`). Update these CSS markers in `ScalperTab.tsx`, `MainTab.tsx`, or `DbQueryTab.tsx` as desired to scale elements.
+- **Where to look**: Tab container heights are hardcoded into standard Tailwind sizes for pristine high-visibility sizing (e.g., `h-[380px]` or `min-h-[380px]`). Update these CSS markers in `ScalperTab.tsx`, `MainTab.tsx`, or `DbQueryTab.tsx` as desired to scale elements. In `MainTab.tsx`, `chartHeight` expands dynamically to `570px` when the Trading Desk terminal is collapsed.
+
+#### Scenario F: You want to update or modify the custom multi-chart layout configs
+- **Where to look**: `/src/components/ChartsTab.tsx` handles state for the `CHARTS MULTI` viewpoint. 
+  - Layout options (`1`, `2`, or `4` grid boxes) are managed via `layout` state hook.
+  - Active symbol inputs and custom candle generation loops reside inside `getSlotCandles()` function.
+  - Default recommended search tickers are bound inside `PRESET_SYMBOLS`.
 
 ---
 

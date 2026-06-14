@@ -70,7 +70,7 @@ export default function MainTab({
   const isBottomVisible = isPinned || (positions.length > 0 && isManuallyCollapsed !== true) || isManuallyCollapsed === false;
 
   // Chart height expands dramatically to utilize the screen real estate when collapsed
-  const chartHeight = isBottomVisible ? 210 : 430;
+  const chartHeight = isBottomVisible ? 210 : 570;
 
   // Multi-timeframe volatility markers mock overlay
   const niftyLTP = candlesNifty.length > 0 ? candlesNifty[candlesNifty.length - 1].close : 22150;

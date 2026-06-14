@@ -65,6 +65,7 @@ export default function Navbar({
             { id: 'home', title: 'HOME TRADING' },
             { id: 'options', title: 'OPTIONS INTRA' },
             { id: 'scalper', title: 'HFT SCALPER' },
+            { id: 'charts', title: 'CHARTS MULTI' },
             { id: 'db', title: 'DUCKDB CLIENT' },
             { id: 'strategy', title: 'ALERTS & LEGS' },
           ].map((tab) => (

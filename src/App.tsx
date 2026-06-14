@@ -10,6 +10,7 @@ import OptionsAnalysisTab from './components/OptionsAnalysisTab';
 import ScalperTab from './components/ScalperTab';
 import DbQueryTab from './components/DbQueryTab';
 import StrategyAlertsTab from './components/StrategyAlertsTab';
+import ChartsTab from './components/ChartsTab';
 import { Candle, OptionChainPayload, OptionContract, MarketTick, TradeLog, Position, BrainSignal, Alert, Strategy, DbTableInfo, DbQueryResult, TradingMode } from './types';
 import { Sparkles, Bell, WifiOff, RefreshCw, X, Cpu } from 'lucide-react';
 
@@ -603,6 +604,15 @@ export default function App() {
               executeQuery={executeSqlQuery}
               exportCsv={exportCsv}
               isQuerying={isQuerying}
+            />
+          )}
+
+          {activeTab === 'charts' && (
+            <ChartsTab
+              candlesNifty={candlesNifty}
+              candlesCall={candlesCall}
+              candlesPut={candlesPut}
+              ticks={ticks}
             />
           )}
 
