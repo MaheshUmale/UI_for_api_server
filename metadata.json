@@ -1,0 +1,6 @@
+{
+  "name": "NIFTY Options Trading Terminal",
+  "description": "Intraday Options Buyer Terminal for NIFTY trading, featuring multi-timeframe analytics, order flow scalper Mode, custom Black-Scholes Greeks, strategy payoffs, and DuckDB querying.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
