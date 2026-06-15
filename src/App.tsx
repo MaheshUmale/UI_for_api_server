@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import Navbar from './components/Navbar';
 import MainTab from './components/MainTab';
 import OptionsAnalysisTab from './components/OptionsAnalysisTab';
@@ -22,7 +23,7 @@ export default function App() {
 
   // Network & Status states
   const [latency, setLatency] = useState<number>(14);
-  const [isConnected, setIsConnected] = useState<boolean>(true);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isReplayRunning, setIsReplayRunning] = useState<boolean>(false);
   const [isBackfilling, setIsBackfilling] = useState<boolean>(false);
 
@@ -62,10 +63,91 @@ export default function App() {
   const [toastAlert, setToastAlert] = useState<{ id: string; message: string; title: string } | null>(null);
 
   // Refs for loop controls
+  const socketRef = useRef<Socket | null>(null);
   const tickTimerRef = useRef<any>(null);
   const currentNiftyPriceRef = useRef<number>(22152.40);
 
-  // Real API Data Fetch
+  // Initialize Socket.IO connection
+  useEffect(() => {
+    const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const socket = io(socketUrl);
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      setIsConnected(true);
+      setLatency(14); // Initial placeholder
+    });
+
+    socket.on('disconnect', () => {
+      setIsConnected(false);
+    });
+
+    socket.on('tick', (data: MarketTick) => {
+      if (data.instrumentKey === 'NSE:NIFTY') {
+        currentNiftyPriceRef.current = data.price;
+        setCandlesNifty((prev) => {
+          if (prev.length === 0) return prev;
+          const lastCandle = { ...prev[prev.length - 1] };
+          lastCandle.close = data.price;
+          lastCandle.high = Math.max(lastCandle.high, data.price);
+          lastCandle.low = Math.min(lastCandle.low, data.price);
+          return [...prev.slice(0, -1), lastCandle];
+        });
+      }
+      setTicks((prev) => [data, ...prev.slice(0, 30)]);
+    });
+
+    socket.on('quote', (data: any) => {
+      // Handle real-time quotes for premiums
+      if (data.instrumentKey === selectedCeStrike) {
+        setCandlesCall((prev) => {
+          if (prev.length === 0) return prev;
+          const lastCandle = { ...prev[prev.length - 1] };
+          lastCandle.close = data.price;
+          return [...prev.slice(0, -1), lastCandle];
+        });
+      } else if (data.instrumentKey === selectedPeStrike) {
+        setCandlesPut((prev) => {
+          if (prev.length === 0) return prev;
+          const lastCandle = { ...prev[prev.length - 1] };
+          lastCandle.close = data.price;
+          return [...prev.slice(0, -1), lastCandle];
+        });
+      }
+    });
+
+    socket.on('options_broadcast', (data: any) => {
+      if (data.underlying === underlying) {
+        setChainPayload(data.payload);
+      }
+    });
+
+    socket.on('scalper_trade', (data: TradeLog) => {
+      setTradeLogs((prev) => [data, ...prev.slice(0, 40)]);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [underlying, selectedCeStrike, selectedPeStrike]);
+
+  // Subscribe to market data when symbols change
+  useEffect(() => {
+    if (socketRef.current && isConnected) {
+      const instrumentKeys = [
+        `NSE:${underlying}`,
+        selectedCeStrike,
+        selectedPeStrike
+      ].filter(Boolean);
+
+      socketRef.current.emit('subscribe', {
+        instrumentKeys,
+        interval: '1m'
+      });
+    }
+  }, [isConnected, underlying, selectedCeStrike, selectedPeStrike]);
+
+  // Generate mock candles on initialize
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -144,17 +226,34 @@ export default function App() {
     ]);
   }, []);
 
-  // Real Socket.IO Integration
+  // Ticks and live wiggling simulation loop (Fallback if not connected)
   useEffect(() => {
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
-    const socket = io(wsUrl, { transports: ['websocket'] });
-    socketRef.current = socket;
+    if (isConnected) {
+      if (tickTimerRef.current) clearInterval(tickTimerRef.current);
+      return;
+    }
 
-    socket.on('connect', () => {
-      setIsConnected(true);
-      console.log('Connected to API Server');
-      socket.emit('subscribe', { instrumentKeys: ['NSE:NIFTY', selectedCeStrike, selectedPeStrike], interval: '1' });
-    });
+    tickTimerRef.current = setInterval(() => {
+      // Create price step wiggles
+      const direction = Math.random() > 0.48 ? 1 : -1;
+      const wiggle = +(Math.random() * 4).toFixed(2) * direction;
+      const nextNifty = +(currentNiftyPriceRef.current + wiggle).toFixed(2);
+      currentNiftyPriceRef.current = nextNifty;
+
+      const niftyLTP = nextNifty;
+      // Derive premiums
+      const scaleCe = Math.max(5.0, 120.0 + (niftyLTP - 22150) * 0.55 + Math.random() * 1.5);
+      const scalePe = Math.max(5.0, 105.0 - (niftyLTP - 22150) * 0.45 + Math.random() * 1.5);
+
+      // Create new Tick entries
+      const newTick: MarketTick = {
+        ts_ms: Date.now(),
+        instrumentKey: 'NSE:NIFTY',
+        price: niftyLTP,
+        volume: Math.floor(Math.random() * 1500) + 200,
+      };
+
+      setTicks((prev) => [newTick, ...prev.slice(0, 30)]);
 
     socket.on('disconnect', () => {
       setIsConnected(false);
@@ -242,77 +341,94 @@ export default function App() {
       }
     });
 
-    return () => {
-      socket.disconnect();
-    };
-  }, [selectedCeStrike, selectedPeStrike]);
+    return () => clearInterval(tickTimerRef.current);
+  }, [alerts, selectedCeStrike, selectedPeStrike, isConnected]);
 
   const latestPcrVolume = () => (chainPayload ? 0.94 : 0.72);
 
   // Generates option chain nodes around ATM strike in steps of 50
-  const generateOptionChainPayload = (basePrice: number) => {
-    const atmBase = Math.round(basePrice / 50) * 50;
-    const chainItems: OptionContract[] = [];
+  const generateOptionChainPayload = async (basePrice: number) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/options/chain/${underlying}/with-greeks`);
+      if (response.ok) {
+        const data = await response.json();
+        setChainPayload(data);
 
-    for (let i = -8; i <= 8; i++) {
-      const strike = atmBase + i * 50;
-      const isCE_itm = strike < basePrice;
-      const isPE_itm = strike > basePrice;
+        const atmBase = Math.round(basePrice / 50) * 50;
+        const buildups = visibleStrikesForOi(atmBase).map((strike) => ({
+          strike,
+          option_type: Math.random() > 0.5 ? 'call' : 'put',
+          oi_change: Math.floor(Math.random() * 45000 + 10000),
+          signal: ['long_buildup', 'short_buildup', 'short_covering', 'long_unwinding'][Math.floor(Math.random() * 4)],
+        }));
+        setOiBuildups(buildups);
+      } else {
+        // Fallback to mock if API is unavailable
+        const atmBase = Math.round(basePrice / 50) * 50;
+        const chainItems: OptionContract[] = [];
 
-      // Call Contract
-      const ceLtp = Math.max(3.5, 120 - (strike - basePrice) * 0.55);
-      chainItems.push({
-        strike,
-        expiry: '2026-06-25',
-        option_type: 'call',
-        ltp: ceLtp,
-        oi: Math.floor(Math.max(10000, 2400000 - Math.abs(strike - basePrice) * 400)),
-        oi_change: Math.floor(Math.random() * 80000 - 15000),
-        volume: Math.floor(Math.max(200, 480000 - Math.abs(strike - basePrice) * 100)),
-        delta: isCE_itm ? 0.75 : 0.32,
-        gamma: 0.002,
-        theta: -8.5,
-        vega: 12.1,
-        iv: 0.145,
-        moneyness: isCE_itm ? 'ITM' : strike === atmBase ? 'ATM' : 'OTM',
-        distance_from_atm_pct: +(Math.abs(strike - basePrice) / basePrice * 100).toFixed(2),
-      });
+        for (let i = -8; i <= 8; i++) {
+          const strike = atmBase + i * 50;
+          const isCE_itm = strike < basePrice;
+          const isPE_itm = strike > basePrice;
 
-      // Put Contract
-      const peLtp = Math.max(3.5, 105 + (strike - basePrice) * 0.45);
-      chainItems.push({
-        strike,
-        expiry: '2026-06-25',
-        option_type: 'put',
-        ltp: peLtp,
-        oi: Math.floor(Math.max(10000, 2100000 - Math.abs(strike - basePrice) * 400)),
-        oi_change: Math.floor(Math.random() * 75000 - 10000),
-        volume: Math.floor(Math.max(200, 410000 - Math.abs(strike - basePrice) * 100)),
-        delta: isPE_itm ? -0.72 : -0.28,
-        gamma: 0.002,
-        theta: -8.1,
-        vega: 11.2,
-        iv: 0.151,
-        moneyness: isPE_itm ? 'ITM' : strike === atmBase ? 'ATM' : 'OTM',
-        distance_from_atm_pct: +(Math.abs(strike - basePrice) / basePrice * 100).toFixed(2),
-      });
+          // Call Contract
+          const ceLtp = Math.max(3.5, 120 - (strike - basePrice) * 0.55);
+          chainItems.push({
+            strike,
+            expiry: '2026-06-25',
+            option_type: 'call',
+            ltp: ceLtp,
+            oi: Math.floor(Math.max(10000, 2400000 - Math.abs(strike - basePrice) * 400)),
+            oi_change: Math.floor(Math.random() * 80000 - 15000),
+            volume: Math.floor(Math.max(200, 480000 - Math.abs(strike - basePrice) * 100)),
+            delta: isCE_itm ? 0.75 : 0.32,
+            gamma: 0.002,
+            theta: -8.5,
+            vega: 12.1,
+            iv: 0.145,
+            moneyness: isCE_itm ? 'ITM' : strike === atmBase ? 'ATM' : 'OTM',
+            distance_from_atm_pct: +(Math.abs(strike - basePrice) / basePrice * 100).toFixed(2),
+          });
+
+          // Put Contract
+          const peLtp = Math.max(3.5, 105 + (strike - basePrice) * 0.45);
+          chainItems.push({
+            strike,
+            expiry: '2026-06-25',
+            option_type: 'put',
+            ltp: peLtp,
+            oi: Math.floor(Math.max(10000, 2100000 - Math.abs(strike - basePrice) * 400)),
+            oi_change: Math.floor(Math.random() * 75000 - 10000),
+            volume: Math.floor(Math.max(200, 410000 - Math.abs(strike - basePrice) * 100)),
+            delta: isPE_itm ? -0.72 : -0.28,
+            gamma: 0.002,
+            theta: -8.1,
+            vega: 11.2,
+            iv: 0.151,
+            moneyness: isPE_itm ? 'ITM' : strike === atmBase ? 'ATM' : 'OTM',
+            distance_from_atm_pct: +(Math.abs(strike - basePrice) / basePrice * 100).toFixed(2),
+          });
+        }
+
+        setChainPayload({
+          underlying: 'NIFTY',
+          spot_price: basePrice,
+          chain: chainItems,
+          source: 'DuckDB Snapshot Cache',
+        });
+
+        const buildups = visibleStrikesForOi(atmBase).map((strike) => ({
+          strike,
+          option_type: Math.random() > 0.5 ? 'call' : 'put',
+          oi_change: Math.floor(Math.random() * 45000 + 10000),
+          signal: ['long_buildup', 'short_buildup', 'short_covering', 'long_unwinding'][Math.floor(Math.random() * 4)],
+        }));
+        setOiBuildups(buildups);
+      }
+    } catch (err) {
+      console.error('Failed to fetch option chain', err);
     }
-
-    setChainPayload({
-      underlying: 'NIFTY',
-      spot_price: basePrice,
-      chain: chainItems,
-      source: 'DuckDB Snapshot Cache',
-    });
-
-    // Populate OI buildup patterns
-    const buildups = visibleStrikesForOi(atmBase).map((strike) => ({
-      strike,
-      option_type: Math.random() > 0.5 ? 'call' : 'put',
-      oi_change: Math.floor(Math.random() * 45000 + 10000),
-      signal: ['long_buildup', 'short_buildup', 'short_covering', 'long_unwinding'][Math.floor(Math.random() * 4)],
-    }));
-    setOiBuildups(buildups);
   };
 
   const visibleStrikesForOi = (atm: number) => [atm - 150, atm - 100, atm - 50, atm, atm + 50, atm + 100, atm + 150];
@@ -369,71 +485,136 @@ export default function App() {
   };
 
   // Trigger backfill Today options history
-  const handleTriggerBackfill = () => {
+  const handleTriggerBackfill = async () => {
     setIsBackfilling(true);
     triggerNotification('BACKFILL INTENT REGISTERED', 'Triggering backend service workers. Compressing today\'s market ticks into options snapshot history logs.');
-    setTimeout(() => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/options/backfill`, {
+        method: 'POST'
+      });
+      if (response.ok) {
+        triggerNotification('BACKFILL WORKER COMPLETE', 'DuckDB snapshot tables updated successfully.');
+      }
+    } catch (err) {
+      console.error('Backfill failed', err);
+    } finally {
       setIsBackfilling(false);
-      triggerNotification('BACKFILL WORKER COMPLETE', 'DuckDB snapshot tables updated. Cached 1,420 contracts snapshots.');
-    }, 3000);
+    }
   };
 
-  // Refresh AI Genie report
-  const refreshInsights = () => {
+  // Refresh AI Genie report using Gemini
+  const refreshInsights = async () => {
     setReloadingInsights(true);
-    setTimeout(() => {
-      setGenieInsights([
-        'AI Sentiment Report: PCR trend has shifted slightly bullish as 22100 put writers add significant leverage.',
-        'High execution speed tick volumes detect heavy absorption at 22200 call option level; potential breakout on index cross.',
-        'Theta attrition is currently low (~ -8.5/day), indicating optimal premium buying window while volatility index rank holds 42%'
-      ]);
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (apiKey && apiKey !== 'MY_GEMINI_API_KEY') {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        const prompt = `Analyze the following NIFTY options market data and provide 3 concise, high-impact trading insights for an intraday options buyer.
+        Spot Price: ${currentNiftyPriceRef.current}
+        Underlying: ${underlying}
+        PCR: ${latestPcrVolume()}
+
+        Provide the response as a JSON array of 3 strings.`;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        // Extract JSON array from text if model wraps it in markdown
+        const jsonMatch = text.match(/\[.*\]/s);
+        if (jsonMatch) {
+          setGenieInsights(JSON.parse(jsonMatch[0]));
+        } else {
+          setGenieInsights([text.substring(0, 200)]);
+        }
+      } else {
+        // Fallback to API or Mock
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/options/genie-insights/${underlying}`);
+        if (response.ok) {
+          const data = await response.json();
+          setGenieInsights(data.insights || []);
+        } else {
+          setGenieInsights([
+            'AI Sentiment Report: PCR trend has shifted slightly bullish as 22100 put writers add significant leverage.',
+            'High execution speed tick volumes detect heavy absorption at 22200 call option level; potential breakout on index cross.',
+            'Theta attrition is currently low (~ -8.5/day), indicating optimal premium buying window while volatility index rank holds 42%'
+          ]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch genie insights', err);
+    } finally {
       setReloadingInsights(false);
       triggerNotification('GENIE REPORT COMPLETED', 'Synthesized options metrics and order-book imbalances. Insights deck armed.');
-    }, 1500);
+    }
   };
 
   // Build customize options strategies payoff metrics
-  const buildStrategyUrl = (type: string, data: any) => {
+  const buildStrategyUrl = async (type: string, data: any) => {
     setBuildingStrategy(true);
-    setTimeout(() => {
-      const parsedStrategy: Strategy = {
-        name: type === 'bull-call-spread' ? 'Bull Call Spread' : type === 'iron-condor' ? 'Iron Condor' : 'Long Straddle',
-        underlying: 'NIFTY',
-        spot_price: data.spot_price,
-        legs: type === 'bull-call-spread' ? [
-          { option_type: 'call', strike: data.lower_strike, action: 'buy', quantity: 1, premium: data.lower_premium, expiry: data.expiry },
-          { option_type: 'call', strike: data.higher_strike, action: 'sell', quantity: 1, premium: data.higher_premium, expiry: data.expiry }
-        ] : [],
-        analysis: {
-          max_profit: type === 'bull-call-spread' ? (data.higher_strike - data.lower_strike - (data.lower_premium - data.higher_premium)) * 50 : 3500,
-          max_loss: type === 'bull-call-spread' ? (data.lower_premium - data.higher_premium) * 50 : 2500,
-          breakeven: type === 'bull-call-spread' ? [data.lower_strike + (data.lower_premium - data.higher_premium)] : [21850, 22250]
-        }
-      };
-      setActiveStrategy(parsedStrategy);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/strategy/build`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, ...data }),
+      });
+      if (response.ok) {
+        const parsedStrategy = await response.json();
+        setActiveStrategy(parsedStrategy);
+        triggerNotification('PAYOFF CALCULATED', `Strategy payoff profile compiled. Max risk pegged to ₹${parsedStrategy.analysis?.max_loss}.`);
+      } else {
+        // Fallback
+        const mockStrategy: Strategy = {
+          name: type === 'bull-call-spread' ? 'Bull Call Spread' : type === 'iron-condor' ? 'Iron Condor' : 'Long Straddle',
+          underlying: 'NIFTY',
+          spot_price: data.spot_price,
+          legs: [],
+          analysis: {
+            max_profit: 3500,
+            max_loss: 2500,
+            breakeven: [21850, 22250]
+          }
+        };
+        setActiveStrategy(mockStrategy);
+      }
+    } catch (err) {
+      console.error('Failed to build strategy', err);
+    } finally {
       setBuildingStrategy(false);
-      triggerNotification('PAYOFF CALCULATED', `Strategy payoff profile compiled. Max risk pegged to ₹${parsedStrategy.analysis?.max_loss}.`);
-    }, 1200);
+    }
   };
 
   // Alerts parameters updater
-  const addAlert = (newAlert: { name: string; alert_type: string; condition: string }) => {
-    const payload: Alert = {
-      id: `al-${Date.now()}`,
-      name: newAlert.name,
-      alert_type: newAlert.alert_type,
-      underlying: 'NIFTY',
-      condition: newAlert.condition,
-      message_template: 'Dynamic trigger crossing identified',
-      status: 'active',
-    };
-    setAlerts((prev) => [payload, ...prev]);
-    triggerNotification('ALERT DRAFTED', `Trigger monitor armed for formula: ${payload.condition}`);
+  const addAlert = async (newAlert: { name: string; alert_type: string; condition: string }) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/alerts/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newAlert, underlying: 'NIFTY' }),
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        setAlerts((prev) => [payload, ...prev]);
+        triggerNotification('ALERT DRAFTED', `Trigger monitor armed for formula: ${payload.condition}`);
+      }
+    } catch (err) {
+      console.error('Failed to add alert', err);
+    }
   };
 
-  const deleteAlert = (id: string) => {
-    setAlerts((prev) => prev.filter((a) => a.id !== id));
-    triggerNotification('ALERT DISARMED', 'Cleaned alert parameters from system memory.');
+  const deleteAlert = async (id: string) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/alerts/${id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        setAlerts((prev) => prev.filter((a) => a.id !== id));
+        triggerNotification('ALERT DISARMED', 'Cleaned alert parameters from system memory.');
+      }
+    } catch (err) {
+      console.error('Failed to delete alert', err);
+    }
   };
 
   const pauseAlert = (id: string) => {
@@ -447,19 +628,19 @@ export default function App() {
   // SQL Query database console executor
   const executeSqlQuery = async (sql: string) => {
     setIsQuerying(true);
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     try {
-      const res = await fetch(`${apiUrl}/api/db/query`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/db/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sql })
+        body: JSON.stringify({ query: sql }),
       });
-      const data = await res.json();
-      if (data.results) {
-        setDbQueryResult({ results: data.results });
-        triggerNotification('QUERY COMPLETE', 'DuckDB query executed successfully.');
-      } else if (data.error || data.detail) {
+      if (response.ok) {
+        const data = await response.json();
+        setDbQueryResult({ results: data.results || [] });
+        triggerNotification('QUERY COMPLETE', 'DuckDB query executed. Formatted logs outputted in results.');
+      } else {
         setDbQueryResult({ results: [], error: data.error || data.detail });
+        throw new Error('Query execution failed');
       }
     } catch (err: any) {
       setDbQueryResult({ results: [], error: err.message });
@@ -469,15 +650,15 @@ export default function App() {
   };
 
   const exportCsv = async (sql: string) => {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    triggerNotification('SPREADSHEET GENERATED', 'Compiling and packing DuckDB dataset blocks. CSV spreadsheet download started.');
     try {
-      const res = await fetch(`${apiUrl}/api/db/export`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/db/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sql })
+        body: JSON.stringify({ query: sql }),
       });
-      if (res.ok) {
-        const blob = await res.blob();
+      if (response.ok) {
+        const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
