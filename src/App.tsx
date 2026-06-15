@@ -42,6 +42,8 @@ export default function App() {
   const [selectedCeStrike, setSelectedCeStrike] = useState<string>('NIFTY24JUN22150CE');
   const [selectedPeStrike, setSelectedPeStrike] = useState<string>('NIFTY24JUN22150PE');
 
+  const socketRef = useRef<Socket | null>(null);
+
   // Option Chain Payload
   const [chainPayload, setChainPayload] = useState<OptionChainPayload | null>(null);
   const [pcrHistory, setPcrHistory] = useState<any[]>([]);
@@ -147,50 +149,49 @@ export default function App() {
 
   // Generate mock candles on initialize
   useEffect(() => {
-    // Generate 40 initial candles for neat plotting
-    const nowSecs = Math.floor(Date.now() / 1000);
-    const timeframeSecs = 60; // 1m candles base
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-    const tempNifty: Candle[] = [];
-    const tempCall: Candle[] = [];
-    const tempPut: Candle[] = [];
+    const fetchInitialData = async () => {
+      try {
+        const [niftyRes, ceRes, peRes] = await Promise.all([
+          fetch(`${apiUrl}/api/tv/intraday/NSE:NIFTY?interval=1`),
+          fetch(`${apiUrl}/api/tv/intraday/${selectedCeStrike}?interval=1`),
+          fetch(`${apiUrl}/api/tv/intraday/${selectedPeStrike}?interval=1`)
+        ]);
 
-    let baseNifty = 22110.0;
-    let baseCall = 125.0;
-    let basePut = 100.0;
+        const niftyData = await niftyRes.json();
+        const ceData = await ceRes.json();
+        const peData = await peRes.json();
 
-    for (let i = 40; i >= 1; i--) {
-      const time = nowSecs - i * timeframeSecs;
+        const mapCandles = (candles: any[]) => (candles || []).map((c: any) => ({
+          time: c[0],
+          open: c[1],
+          high: c[2],
+          low: c[3],
+          close: c[4],
+          volume: c[5]
+        }));
 
-      // Nifty
-      const openN = baseNifty + (Math.random() * 20 - 10);
-      const closeN = openN + (Math.random() * 16 - 8);
-      const highN = Math.max(openN, closeN) + Math.random() * 6;
-      const lowN = Math.min(openN, closeN) - Math.random() * 6;
-      tempNifty.push({ time, open: openN, high: highN, low: lowN, close: closeN, volume: Math.floor(Math.random() * 12000 + 4000) });
-      baseNifty = closeN;
+        if (niftyData.candles) {
+          setCandlesNifty(mapCandles(niftyData.candles));
+          if (niftyData.candles.length > 0) {
+            currentNiftyPriceRef.current = niftyData.candles[niftyData.candles.length - 1][4];
+          }
+        }
+        if (ceData.candles) setCandlesCall(mapCandles(ceData.candles));
+        if (peData.candles) setCandlesPut(mapCandles(peData.candles));
 
-      // Call Premium
-      const openC = baseCall + (Math.random() * 8 - 4);
-      const closeC = openC + (Math.random() * 6 - 3);
-      const highC = Math.max(openC, closeC) + Math.random() * 3;
-      const lowC = Math.min(openC, closeC) - Math.random() * 3;
-      tempCall.push({ time, open: openC, high: highC, low: lowC, close: closeC, volume: Math.floor(Math.random() * 4000 + 1000) });
-      baseCall = closeC;
+        // Fetch option chain
+        const chainRes = await fetch(`${apiUrl}/api/options/chain/NIFTY/with-greeks`);
+        const chainData = await chainRes.json();
+        setChainPayload(chainData);
 
-      // Put Premium
-      const openP = basePut + (Math.random() * 8 - 4);
-      const closeP = openP + (Math.random() * 6 - 3);
-      const highP = Math.max(openP, closeP) + Math.random() * 3;
-      const lowP = Math.min(openP, closeP) - Math.random() * 3;
-      tempPut.push({ time, open: openP, high: highP, low: lowP, close: closeP, volume: Math.floor(Math.random() * 4000 + 1000) });
-      basePut = closeP;
-    }
+      } catch (error) {
+        console.error("Failed to fetch initial data", error);
+      }
+    };
 
-    setCandlesNifty(tempNifty);
-    setCandlesCall(tempCall);
-    setCandlesPut(tempPut);
-    currentNiftyPriceRef.current = baseNifty;
+    fetchInitialData();
 
     // Load initial support and resistance levels
     setSupportResistance({
@@ -203,9 +204,6 @@ export default function App() {
         { strike: 22400, oi: 2110000 },
       ],
     });
-
-    // Option Chain payload
-    generateOptionChainPayload(baseNifty);
 
     // Initial alert presets
     setAlerts([
@@ -257,71 +255,91 @@ export default function App() {
 
       setTicks((prev) => [newTick, ...prev.slice(0, 30)]);
 
-      // Create TSales Tape logs
-      const newTape: TradeLog = {
-        id: `t-${Date.now()}`,
-        timestamp: Date.now(),
-        price: Math.random() > 0.5 ? scaleCe : scalePe,
-        quantity: Math.floor(Math.random() * 400) + 50,
-        aggressor: Math.random() > 0.5 ? 'Buy' : 'Sell',
-        symbol: Math.random() > 0.5 ? selectedCeStrike : selectedPeStrike,
-      };
-      setTradeLogs((prev) => [newTape, ...prev.slice(0, 40)]);
+    socket.on('disconnect', () => {
+      setIsConnected(false);
+    });
 
-      // Update active candle series (wiggles affect the last open candle closing value)
-      setCandlesNifty((prev) => {
-        if (prev.length === 0) return prev;
-        const lastCandle = { ...prev[prev.length - 1] };
-        lastCandle.close = niftyLTP;
-        lastCandle.high = Math.max(lastCandle.high, niftyLTP);
-        lastCandle.low = Math.min(lastCandle.low, niftyLTP);
-        return [...prev.slice(0, -1), lastCandle];
-      });
+    socket.on('raw_tick', (data: any) => {
+      Object.keys(data).forEach((key) => {
+        const feed = data[key];
+        const newTick: MarketTick = {
+          ts_ms: feed.ts_ms,
+          instrumentKey: key,
+          price: feed.last_price,
+          volume: feed.tv_volume,
+        };
 
-      setCandlesCall((prev) => {
-        if (prev.length === 0) return prev;
-        const lastCandle = { ...prev[prev.length - 1] };
-        lastCandle.close = scaleCe;
-        lastCandle.high = Math.max(lastCandle.high, scaleCe);
-        lastCandle.low = Math.min(lastCandle.low, scaleCe);
-        return [...prev.slice(0, -1), lastCandle];
-      });
+        if (key === 'NSE:NIFTY') {
+          currentNiftyPriceRef.current = feed.last_price;
+          setTicks((prev) => [newTick, ...prev.slice(0, 30)]);
 
-      setCandlesPut((prev) => {
-        if (prev.length === 0) return prev;
-        const lastCandle = { ...prev[prev.length - 1] };
-        lastCandle.close = scalePe;
-        lastCandle.high = Math.max(lastCandle.high, scalePe);
-        lastCandle.low = Math.min(lastCandle.low, scalePe);
-        return [...prev.slice(0, -1), lastCandle];
-      });
-
-      // Update positions P&L dynamically relative to the new price wiggles
-      setPositions((prev) =>
-        prev.map((pos) => {
-          const ltpVal = pos.type === 'CE' ? scaleCe : scalePe;
-          const diff = ltpVal - pos.avgPrice;
-          const lotSize = 50;
-          const calculatedPnl = diff * pos.qty * lotSize;
-          return {
-            ...pos,
-            ltp: ltpVal,
-            pnl: calculatedPnl,
-          };
-        })
-      );
-
-      // Check alert conditions dynamically
-      alerts.forEach((alert) => {
-        if (alert.status === 'active') {
-          if (alert.alert_type === 'PRICE' && niftyLTP > 22250) {
-            triggerNotification('BREACH DETECTED!', `NIFTY Spot price ruptured 22250 resistance. Current: ₹${niftyLTP}`);
-          } else if (alert.alert_type === 'PCR' && latestPcrVolume() < 0.8) {
-            triggerNotification('PCR THRESHOLD', 'Put-Call Volume Ratio is leaning extremely bearish.');
-          }
+          setCandlesNifty((prev) => {
+            if (prev.length === 0) return prev;
+            const lastCandle = { ...prev[prev.length - 1] };
+            lastCandle.close = feed.last_price;
+            lastCandle.high = Math.max(lastCandle.high, feed.last_price);
+            lastCandle.low = Math.min(lastCandle.low, feed.last_price);
+            return [...prev.slice(0, -1), lastCandle];
+          });
+        } else if (key === selectedCeStrike) {
+          setCandlesCall((prev) => {
+            if (prev.length === 0) return prev;
+            const lastCandle = { ...prev[prev.length - 1] };
+            lastCandle.close = feed.last_price;
+            lastCandle.high = Math.max(lastCandle.high, feed.last_price);
+            lastCandle.low = Math.min(lastCandle.low, feed.last_price);
+            return [...prev.slice(0, -1), lastCandle];
+          });
+        } else if (key === selectedPeStrike) {
+          setCandlesPut((prev) => {
+            if (prev.length === 0) return prev;
+            const lastCandle = { ...prev[prev.length - 1] };
+            lastCandle.close = feed.last_price;
+            lastCandle.high = Math.max(lastCandle.high, feed.last_price);
+            lastCandle.low = Math.min(lastCandle.low, feed.last_price);
+            return [...prev.slice(0, -1), lastCandle];
+          });
         }
       });
-    }, 1200);
+    });
+
+    socket.on('chart_update', (data: any) => {
+      const { instrumentKey, ohlcv } = data;
+      if (!ohlcv || ohlcv.length === 0) return;
+
+      const latest = ohlcv[0];
+      const newCandle: Candle = {
+        time: latest[0],
+        open: latest[1],
+        high: latest[2],
+        low: latest[3],
+        close: latest[4],
+        volume: latest[5]
+      };
+
+      if (instrumentKey === 'NSE:NIFTY') {
+        setCandlesNifty((prev) => {
+          if (prev.some(c => c.time === newCandle.time)) {
+             return prev.map(c => c.time === newCandle.time ? newCandle : c);
+          }
+          return [...prev, newCandle].slice(-100);
+        });
+      } else if (instrumentKey === selectedCeStrike) {
+        setCandlesCall((prev) => {
+          if (prev.some(c => c.time === newCandle.time)) {
+             return prev.map(c => c.time === newCandle.time ? newCandle : c);
+          }
+          return [...prev, newCandle].slice(-100);
+        });
+      } else if (instrumentKey === selectedPeStrike) {
+        setCandlesPut((prev) => {
+          if (prev.some(c => c.time === newCandle.time)) {
+             return prev.map(c => c.time === newCandle.time ? newCandle : c);
+          }
+          return [...prev, newCandle].slice(-100);
+        });
+      }
+    });
 
     return () => clearInterval(tickTimerRef.current);
   }, [alerts, selectedCeStrike, selectedPeStrike, isConnected]);
@@ -621,6 +639,7 @@ export default function App() {
         setDbQueryResult({ results: data.results || [] });
         triggerNotification('QUERY COMPLETE', 'DuckDB query executed. Formatted logs outputted in results.');
       } else {
+        setDbQueryResult({ results: [], error: data.error || data.detail });
         throw new Error('Query execution failed');
       }
     } catch (err: any) {
@@ -648,9 +667,13 @@ export default function App() {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        triggerNotification('SPREADSHEET GENERATED', 'DuckDB dataset export complete.');
+      } else {
+        triggerNotification('EXPORT FAILED', 'Failed to export DuckDB data.');
       }
     } catch (err) {
-      console.error('Failed to export CSV', err);
+      console.error("Export error", err);
+      triggerNotification('EXPORT ERROR', 'An error occurred during export.');
     }
   };
 
